@@ -3,7 +3,7 @@
 // pauses of up to 5 minutes (a red light, a rest between sets) don't split them.
 // Heart-rate recovery: HR over the bout's last 10 s minus HR 60 s / 120 s later (Cole 1999 style;
 // informal protocol, so it's tracked against your own typical drop, never a clinical cutoff).
-import { hrWindow, zonesAndLoad } from "./metrics.js?v=20260924162635";
+import { hrWindow, zonesAndLoad } from "./metrics.js?v=20260924180007";
 
 const ms = (t) => Date.UTC(+t.slice(0, 4), +t.slice(5, 7) - 1, +t.slice(8, 10), +t.slice(11, 13), +t.slice(14, 16), +t.slice(17, 19));
 const fmt = (m) => new Date(m).toISOString().slice(0, 19).replace("T", " ");
