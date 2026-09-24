@@ -1,19 +1,19 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260924180007";
-import * as db from "./core/db.js?v=20260924180007";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924180007";
-import { stamp } from "./core/time.js?v=20260924180007";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924180007";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924180007";
-import { scoreDays } from "./analytics/scores.js?v=20260924180007";
-import { buildModel } from "./v3/model.js?v=20260924180007";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924180007";
-import { drill, M } from "./v3/drill.js?v=20260924180007";
-import { today } from "./v3/today.js?v=20260924180007";
-import { night } from "./v3/night.js?v=20260924180007";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924180007";
-import { onboarding, preventCard, profile, sheet } from "./v3/profile.js?v=20260924180007";
+import { Band } from "./core/ble.js?v=20260924180231";
+import * as db from "./core/db.js?v=20260924180231";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924180231";
+import { stamp } from "./core/time.js?v=20260924180231";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924180231";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924180231";
+import { scoreDays } from "./analytics/scores.js?v=20260924180231";
+import { buildModel } from "./v3/model.js?v=20260924180231";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924180231";
+import { drill, M } from "./v3/drill.js?v=20260924180231";
+import { today } from "./v3/today.js?v=20260924180231";
+import { night } from "./v3/night.js?v=20260924180231";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924180231";
+import { onboarding, preventCard, profile, sheet } from "./v3/profile.js?v=20260924180231";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -238,9 +238,11 @@ function importData() {
 /** The main Pulse app (same site, database "jcv8") keeps its own history. /next/ can copy it: read-only on
  *  the source; opening it without a version number never upgrades it. */
 async function probeLive() {
-  if (!PREVIEW || DEMO || !indexedDB.databases) return null;
+  if (!PREVIEW || DEMO) return null;
   try {
-    if (!(await indexedDB.databases()).some((d) => d.name === db.DB_NAME)) return null;
+    // No databases() in some engines: opening without a version and aborting the upgrade (which only fires
+    // when the database doesn't exist) is a safe existence check that never creates or upgrades anything.
+    if (indexedDB.databases && !(await indexedDB.databases()).some((d) => d.name === db.DB_NAME)) return null;
     const live = await new Promise((ok, err) => { const r = indexedDB.open(db.DB_NAME); r.onsuccess = () => ok(r.result); r.onerror = () => err(r.error); r.onupgradeneeded = () => r.transaction.abort(); });
     const has = (s) => live.objectStoreNames.contains(s);
     const count = (s) => (has(s) ? new Promise((ok) => { const q = live.transaction(s).objectStore(s).count(); q.onsuccess = () => ok(q.result); q.onerror = () => ok(0); }) : 0);
@@ -445,7 +447,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260924180007");
+    const { seedDemo } = await import("./demo.js?v=20260924180231");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
   }
   ctx.profile = (await db.getSetting(ctx.store, "profile")) ?? {};

@@ -1,8 +1,8 @@
 // Today: the day so far. Activity gauge, heart now and last night's recovery, the day's timeline, activity
 // tiles, and workouts detected from heart rate (with a prompt when one can't be classified from steps).
-import { mean, median } from "./stats.js?v=20260924180007";
-import { M, paceFrac } from "./drill.js?v=20260924180007";
-import { ampm, cap1, css, D, empty, esc, FULLDAY, glow, glowDef, gauge, header, hr12, MON, mini, montage, relMin, ringSvg, S, sc, short, smoothRuns, st, stateOf, syncChip, tile, uid, DAYS } from "./kit.js?v=20260924180007";
+import { mean, median } from "./stats.js?v=20260924180231";
+import { M, paceFrac } from "./drill.js?v=20260924180231";
+import { ampm, cap1, css, D, empty, esc, FULLDAY, glow, glowDef, gauge, header, hr12, MON, mini, montage, relMin, ringSvg, S, sc, short, smoothRuns, st, stateOf, syncChip, tile, uid, DAYS } from "./kit.js?v=20260924180231";
 
 const DAYX = sc(6 * 60, 22 * 60, 0, 300);
 const WTYPES = ["Strength", "Yard or housework", "Cycling", "Other"];

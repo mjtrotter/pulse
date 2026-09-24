@@ -1,11 +1,11 @@
 // Profile: who you are (feeds norms, goals and heart-rate zones), settings, heart risk from labs + home BP,
 // labs and what they imply, the band, your data, and first-run setup. Also the bottom sheets (forms).
-import { derived } from "../analytics/labs.js?v=20260924180007";
-import { prevent } from "../analytics/prevent.js?v=20260924180007";
-import { cmToFtIn, isUS, kg } from "../core/units.js?v=20260924180007";
-import { mean, sd } from "./stats.js?v=20260924180007";
-import { bpSummary } from "./measure.js?v=20260924180007";
-import { css, D, esc, header, MON, pct, poly, relMin, S, sc, sign, smooth, st } from "./kit.js?v=20260924180007";
+import { derived } from "../analytics/labs.js?v=20260924180231";
+import { prevent } from "../analytics/prevent.js?v=20260924180231";
+import { cmToFtIn, isUS, kg } from "../core/units.js?v=20260924180231";
+import { mean, sd } from "./stats.js?v=20260924180231";
+import { bpSummary } from "./measure.js?v=20260924180231";
+import { css, D, esc, header, MON, pct, poly, relMin, S, sc, sign, smooth, st } from "./kit.js?v=20260924180231";
 
 export const ANALYTES = [
   { k: "ldl", n: "LDL cholesterol", u: "mg/dL", ref: [0, 99], grp: "Lipids" },

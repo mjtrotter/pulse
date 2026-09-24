@@ -1,13 +1,13 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20260924180007";
-import { dayOf, toMs } from "../core/time.js?v=20260924180007";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924180007";
-import { detectWorkouts } from "../analytics/workouts.js?v=20260924180007";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924180007";
-import { stepGoal } from "../analytics/scores.js?v=20260924180007";
-import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924180007";
+import * as db from "../core/db.js?v=20260924180231";
+import { dayOf, toMs } from "../core/time.js?v=20260924180231";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924180231";
+import { detectWorkouts } from "../analytics/workouts.js?v=20260924180231";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924180231";
+import { stepGoal } from "../analytics/scores.js?v=20260924180231";
+import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924180231";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
