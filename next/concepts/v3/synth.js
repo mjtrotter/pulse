@@ -3,7 +3,7 @@
 // Waveform: a sum of Gaussians per beat (P, Q, R, S, T; after McSharry 2003), with QT scaled by √RR,
 // breathing-modulated R amplitude and baseline, one premature wide beat, and sensor noise.
 
-export function synthEcg({ seconds = 125, fs = 256, hr = 62, breath = 13.8, seed = 13 } = {}) {
+export function synthEcg({ seconds = 125, fs = 256, hr = 62, breath = 13.8, seed = 13, rsa = 0.021, pvcAt = 66 } = {}) {
   let s = seed;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   const gauss = () => { let u = 0; for (let i = 0; i < 6; i++) u += rnd(); return (u - 3) / Math.sqrt(0.5); };
@@ -12,8 +12,8 @@ export function synthEcg({ seconds = 125, fs = 256, hr = 62, breath = 13.8, seed
   let t = 0.4, ar = 0;
   while (t < seconds - 0.8) {
     ar = 0.975 * ar + gauss() * 0.0085;
-    let rr = rr0 + 0.021 * Math.sin(2 * Math.PI * fr * t) + 0.024 * Math.sin(2 * Math.PI * 0.085 * t + 1.1) + ar;
-    const pvc = beats.length === 66;
+    let rr = rr0 + rsa * Math.sin(2 * Math.PI * fr * t) + 0.024 * Math.sin(2 * Math.PI * 0.085 * t + 1.1) + ar;
+    const pvc = beats.length === pvcAt;
     if (pvc) rr = rr0 * 0.62;
     beats.push({ t, rr, pvc });
     t += pvc ? rr : rr;

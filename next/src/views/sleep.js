@@ -1,12 +1,12 @@
 // Sleep: last night (or any night) in detail, then the two-week picture and regularity.
-import { clockDiff, circularStats, sleepNeed, sleepRegularityIndex } from "../analytics/sleep.js?v=20260924145338";
-import { addDaysStr, clock, clockFromMin, dayOf, stamp, toMs } from "../core/time.js?v=20260924145338";
-import { fmtTempDelta, tempUnit } from "../core/units.js?v=20260924145338";
-import { barChart, hypnogram, lineChart, sleepWindows } from "../ui/charts.js?v=20260924145338";
-import { card, cardHead, chip, header, meterRow, ring, row, scoreStatus, section, stageBar } from "../ui/components.js?v=20260924145338";
-import { h, icon } from "../ui/h.js?v=20260924145338";
-import { dateLong, dateShort, dayLabel } from "./common.js?v=20260924145338";
-import { stopBang, stopBangSheet } from "./you.js?v=20260924145338";
+import { clockDiff, circularStats, sleepNeed, sleepRegularityIndex } from "../analytics/sleep.js?v=20260924162635";
+import { addDaysStr, clock, clockFromMin, dayOf, stamp, toMs } from "../core/time.js?v=20260924162635";
+import { fmtTempDelta, tempUnit } from "../core/units.js?v=20260924162635";
+import { barChart, hypnogram, lineChart, sleepWindows } from "../ui/charts.js?v=20260924162635";
+import { card, cardHead, chip, header, meterRow, ring, row, scoreStatus, section, stageBar } from "../ui/components.js?v=20260924162635";
+import { h, icon } from "../ui/h.js?v=20260924162635";
+import { dateLong, dateShort, dayLabel } from "./common.js?v=20260924162635";
+import { stopBang, stopBangSheet } from "./you.js?v=20260924162635";
 
 export const STAGE_COLORS = { deep: "var(--deep)", light: "var(--light)", rem: "var(--rem)", awake: "var(--awake)" };
 const dur = (m) => { const r = Math.round(m); return `${Math.floor(r / 60)}h ${String(r % 60).padStart(2, "0")}m`; };

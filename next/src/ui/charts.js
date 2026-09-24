@@ -1,7 +1,7 @@
 // SVG charts following the dataviz method: 2px lines, ≤24px bars with 4px rounded data-ends,
 // hairline solid gridlines, a personal-baseline band instead of dashed guides, crosshair + tooltip
 // on lines, per-mark tooltips on bars, and a table view for every chart.
-import { h, s } from "./h.js?v=20260924145338";
+import { h, s } from "./h.js?v=20260924162635";
 
 const measure = (box) => Math.max(260, Math.round(box.getBoundingClientRect().width || box.clientWidth || 340));
 

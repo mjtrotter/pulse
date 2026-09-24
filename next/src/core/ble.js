@@ -1,8 +1,8 @@
 // Web Bluetooth client for one JCV8 band (Chrome on Mac/Android, Bluefy on iPhone).
 // Notifications are buffered; collect() drains them with overall and idle timeouts,
 // mirroring Band.collect in jcv8.py and BandClient.collect in Swift.
-import { decodeEcgPacket } from "../analytics/ecg.js?v=20260924145338";
-import { Cmd, decodeInfo, HISTORY, HistoryPage, isBandName, NAME_PREFIXES, namePacket, notifyPacket, NOTIFY, packet, recordTime, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260924145338";
+import { decodeEcgPacket } from "../analytics/ecg.js?v=20260924162635";
+import { Cmd, decodeInfo, HISTORY, HistoryPage, isBandName, NAME_PREFIXES, namePacket, notifyPacket, NOTIFY, packet, recordTime, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260924162635";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

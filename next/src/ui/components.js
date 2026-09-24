@@ -1,5 +1,5 @@
 // Reusable pieces of the Pulse design system. Each returns a DOM node.
-import { h, icon, s } from "./h.js?v=20260924145338";
+import { h, icon, s } from "./h.js?v=20260924162635";
 
 /** Status for a 0-100 score: fixed bands (WHOOP-style thresholds, held constant app-wide). */
 export function scoreStatus(v) {

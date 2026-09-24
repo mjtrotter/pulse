@@ -1,13 +1,13 @@
 // Drill-down for one nightly/daily metric: 30 or 90 days against your usual range, how it's measured,
 // what's typical, and a table.
-import { baseline, median } from "../analytics/baseline.js?v=20260924145338";
-import { addDaysStr, dayOf, toMs } from "../core/time.js?v=20260924145338";
-import { tempC, tempUnit, tempDelta } from "../core/units.js?v=20260924145338";
-import { lineChart, barChart } from "../ui/charts.js?v=20260924145338";
-import { card, cardHead, detailHeader, segmented } from "../ui/components.js?v=20260924145338";
-import { h } from "../ui/h.js?v=20260924145338";
-import { dateShort } from "./common.js?v=20260924145338";
-import { currentPhase } from "../analytics/cycle.js?v=20260924145338";
+import { baseline, median } from "../analytics/baseline.js?v=20260924162635";
+import { addDaysStr, dayOf, toMs } from "../core/time.js?v=20260924162635";
+import { tempC, tempUnit, tempDelta } from "../core/units.js?v=20260924162635";
+import { lineChart, barChart } from "../ui/charts.js?v=20260924162635";
+import { card, cardHead, detailHeader, segmented } from "../ui/components.js?v=20260924162635";
+import { h } from "../ui/h.js?v=20260924162635";
+import { dateShort } from "./common.js?v=20260924162635";
+import { currentPhase } from "../analytics/cycle.js?v=20260924162635";
 
 let span = 30;
 

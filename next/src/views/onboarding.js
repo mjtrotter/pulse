@@ -1,10 +1,10 @@
 // First run: one question per screen, big buttons, no accounts. Ends with the band connected and a
 // first sync, then how to wear it.
-import * as db from "../core/db.js?v=20260924145338";
-import { DEFAULT_SCHEDULE } from "../core/sync.js?v=20260924145338";
-import { ftInToCm, lbToKg } from "../core/units.js?v=20260924145338";
-import { toast } from "../ui/components.js?v=20260924145338";
-import { h, icon, s } from "../ui/h.js?v=20260924145338";
+import * as db from "../core/db.js?v=20260924162635";
+import { DEFAULT_SCHEDULE } from "../core/sync.js?v=20260924162635";
+import { ftInToCm, lbToKg } from "../core/units.js?v=20260924162635";
+import { toast } from "../ui/components.js?v=20260924162635";
+import { h, icon, s } from "../ui/h.js?v=20260924162635";
 
 const state = { step: 0, draft: {} };
 const STEPS = ["welcome", "name", "about", "health", "band", "wear"];

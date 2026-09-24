@@ -1,12 +1,12 @@
 // Home blood-pressure log. Averages follow the home-monitoring protocol (AHA 2019 / ESH): readings on
 // several days, morning and evening, averaged; categories are the 2017 ACC/AHA ones, which the 2025
 // AHA/ACC guideline kept. A band BP estimate is never shown as a number here (it isn't validated).
-import * as db from "../core/db.js?v=20260924145338";
-import { clock, dayOf, relTime, stamp, toMs } from "../core/time.js?v=20260924145338";
-import { lineChart } from "../ui/charts.js?v=20260924145338";
-import { banner, card, cardHead, chip, detailHeader, row, section, toast } from "../ui/components.js?v=20260924145338";
-import { h } from "../ui/h.js?v=20260924145338";
-import { dateShort } from "./common.js?v=20260924145338";
+import * as db from "../core/db.js?v=20260924162635";
+import { clock, dayOf, relTime, stamp, toMs } from "../core/time.js?v=20260924162635";
+import { lineChart } from "../ui/charts.js?v=20260924162635";
+import { banner, card, cardHead, chip, detailHeader, row, section, toast } from "../ui/components.js?v=20260924162635";
+import { h } from "../ui/h.js?v=20260924162635";
+import { dateShort } from "./common.js?v=20260924162635";
 
 /** 2017 ACC/AHA categories (unchanged in 2025). */
 export function bpCategory(sys, dia) {

@@ -3,11 +3,11 @@
    Metric hues are steps of the validated dataviz reference palette (run validate_palette.js
    against --surface when changing any of them). Status colors are reserved for good/watch/attention. */
 
-@font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fonts/Inter-Regular.woff2?v=20260924145338") format("woff2"); }
-@font-face { font-family: "Inter"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/Inter-Medium.woff2?v=20260924145338") format("woff2"); }
-@font-face { font-family: "Inter"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fonts/Inter-SemiBold.woff2?v=20260924145338") format("woff2"); }
-@font-face { font-family: "Inter Display"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/InterDisplay-Medium.woff2?v=20260924145338") format("woff2"); }
-@font-face { font-family: "Inter Display"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fonts/InterDisplay-SemiBold.woff2?v=20260924145338") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; font-style: normal; font-display: swap; src: url("../fonts/Inter-Regular.woff2?v=20260924162635") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/Inter-Medium.woff2?v=20260924162635") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fonts/Inter-SemiBold.woff2?v=20260924162635") format("woff2"); }
+@font-face { font-family: "Inter Display"; font-weight: 500; font-style: normal; font-display: swap; src: url("../fonts/InterDisplay-Medium.woff2?v=20260924162635") format("woff2"); }
+@font-face { font-family: "Inter Display"; font-weight: 600; font-style: normal; font-display: swap; src: url("../fonts/InterDisplay-SemiBold.woff2?v=20260924162635") format("woff2"); }
 
 :root {
   color-scheme: dark;

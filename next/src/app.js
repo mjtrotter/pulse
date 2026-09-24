@@ -1,13 +1,13 @@
 // Pulse v2 app shell: routing, connection/sync state, and the shared context every screen gets.
-import { Band } from "./core/ble.js?v=20260924145338";
-import * as db from "./core/db.js?v=20260924145338";
-import { syncBand } from "./core/sync.js?v=20260924145338";
-import { dayOf, relTime, stamp } from "./core/time.js?v=20260924145338";
-import { setUnits } from "./core/units.js?v=20260924145338";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924145338";
-import { scoreDays } from "./analytics/scores.js?v=20260924145338";
-import { closeSheet, toast } from "./ui/components.js?v=20260924145338";
-import { h, icon } from "./ui/h.js?v=20260924145338";
+import { Band } from "./core/ble.js?v=20260924162635";
+import * as db from "./core/db.js?v=20260924162635";
+import { syncBand } from "./core/sync.js?v=20260924162635";
+import { dayOf, relTime, stamp } from "./core/time.js?v=20260924162635";
+import { setUnits } from "./core/units.js?v=20260924162635";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924162635";
+import { scoreDays } from "./analytics/scores.js?v=20260924162635";
+import { closeSheet, toast } from "./ui/components.js?v=20260924162635";
+import { h, icon } from "./ui/h.js?v=20260924162635";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -15,17 +15,17 @@ const PREVIEW = location.pathname.includes("/next/");
 const DB = DEMO ? "jcv8-demo" : PREVIEW ? "jcv8-next" : db.DB_NAME;
 
 const ROUTES = {
-  today: () => import("./views/today.js?v=20260924145338"),
-  sleep: () => import("./views/sleep.js?v=20260924145338"),
-  heart: () => import("./views/heart.js?v=20260924145338"),
-  activity: () => import("./views/activity.js?v=20260924145338"),
-  recovery: () => import("./views/recovery.js?v=20260924145338"),
-  metric: () => import("./views/metric.js?v=20260924145338"),
-  ecg: () => import("./views/ecg.js?v=20260924145338"),
-  bp: () => import("./views/bp.js?v=20260924145338"),
-  you: () => import("./views/you.js?v=20260924145338"),
-  methods: () => import("./views/methods.js?v=20260924145338"),
-  welcome: () => import("./views/onboarding.js?v=20260924145338"),
+  today: () => import("./views/today.js?v=20260924162635"),
+  sleep: () => import("./views/sleep.js?v=20260924162635"),
+  heart: () => import("./views/heart.js?v=20260924162635"),
+  activity: () => import("./views/activity.js?v=20260924162635"),
+  recovery: () => import("./views/recovery.js?v=20260924162635"),
+  metric: () => import("./views/metric.js?v=20260924162635"),
+  ecg: () => import("./views/ecg.js?v=20260924162635"),
+  bp: () => import("./views/bp.js?v=20260924162635"),
+  you: () => import("./views/you.js?v=20260924162635"),
+  methods: () => import("./views/methods.js?v=20260924162635"),
+  welcome: () => import("./views/onboarding.js?v=20260924162635"),
 };
 const TABS = ["today", "sleep", "heart", "activity"];
 const TINT = { today: "var(--accent)", sleep: "var(--sleep)", heart: "var(--heart)", activity: "var(--act)", recovery: "var(--good)",
@@ -213,7 +213,7 @@ async function main() {
   ctx.store = await db.open(DB);
   if (DEMO) {
     document.body.prepend(h("p.demo-banner", "Demo data — nothing here is real"));
-    const { seedDemo } = await import("./demo.js?v=20260924145338");
+    const { seedDemo } = await import("./demo.js?v=20260924162635");
     if (!(await db.getSetting(ctx.store, "profile"))) {
       await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 84, units: "us", onboarded: true });
     }

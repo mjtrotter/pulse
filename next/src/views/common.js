@@ -1,8 +1,8 @@
 // Shared bits for screens: the live sync pill, baselines over summaries, formatting.
-import { baseline, median, z } from "../analytics/baseline.js?v=20260924145338";
-import { syncLine } from "../app.js?v=20260924145338";
-import { addDaysStr, DAY, MONTH, toDate } from "../core/time.js?v=20260924145338";
-import { h, icon } from "../ui/h.js?v=20260924145338";
+import { baseline, median, z } from "../analytics/baseline.js?v=20260924162635";
+import { syncLine } from "../app.js?v=20260924162635";
+import { addDaysStr, DAY, MONTH, toDate } from "../core/time.js?v=20260924162635";
+import { h, icon } from "../ui/h.js?v=20260924162635";
 
 /** The connection/sync pill; keeps itself up to date via pulse:status events. */
 export function syncPill(ctx) {

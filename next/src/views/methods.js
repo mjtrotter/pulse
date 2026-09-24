@@ -1,6 +1,6 @@
 // Methods & sources: what each number is, how Pulse computes it, and the research behind it.
-import { card, cardHead, detailHeader, section } from "../ui/components.js?v=20260924145338";
-import { h } from "../ui/h.js?v=20260924145338";
+import { card, cardHead, detailHeader, section } from "../ui/components.js?v=20260924162635";
+import { h } from "../ui/h.js?v=20260924162635";
 
 const M = [
   ["Sleep", [

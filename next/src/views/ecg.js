@@ -3,12 +3,12 @@
 // Inconclusive outside 50-120 bpm or with a noisy strip, as cleared consumer ECGs do. HRV measures are
 // shown only when the recording is long enough to support them (Baek 2015: RMSSD from 30 s, pNN50 from
 // 60 s, SDNN needs ~4 min).
-import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20260924145338";
-import * as db from "../core/db.js?v=20260924145338";
-import { clock, relTime, stamp } from "../core/time.js?v=20260924145338";
-import { card, cardHead, chip, detailHeader, row, section, segmented, sheet, toast } from "../ui/components.js?v=20260924145338";
-import { h, icon } from "../ui/h.js?v=20260924145338";
-import { dateShort } from "./common.js?v=20260924145338";
+import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20260924162635";
+import * as db from "../core/db.js?v=20260924162635";
+import { clock, relTime, stamp } from "../core/time.js?v=20260924162635";
+import { card, cardHead, chip, detailHeader, row, section, segmented, sheet, toast } from "../ui/components.js?v=20260924162635";
+import { h, icon } from "../ui/h.js?v=20260924162635";
+import { dateShort } from "./common.js?v=20260924162635";
 
 const SETTLE = 5;
 let duration = 30;

@@ -1,9 +1,9 @@
 // Sync engine: pull new history from the band, store it, and report which days changed.
 // History arrives newest first in 500-record pages, and the band ignores resume dates, so we stop
 // paging once a page reaches data we already have (see Band.history).
-import * as db from "./db.js?v=20260924145338";
-import { AUTO, autoMeasurePacket, Cmd, decodeAutoMeasure, decodeHistory, decodeOsa, decodeRealtime, hex, osaPacket, packet, profilePacket, SYNCED } from "./protocol.js?v=20260924145338";
-import { stamp } from "./time.js?v=20260924145338";
+import * as db from "./db.js?v=20260924162635";
+import { AUTO, autoMeasurePacket, Cmd, decodeAutoMeasure, decodeHistory, decodeOsa, decodeRealtime, hex, osaPacket, packet, profilePacket, SYNCED } from "./protocol.js?v=20260924162635";
+import { stamp } from "./time.js?v=20260924162635";
 
 const TABLE = { hr: "hr", hrv: "hrv_vendor", spo2: "spo2", temp: "temp", sleep: "sleep", daily: "daily", activity: "activity", ppi: "ppi" };
 const LABEL = { hr: "heart rate", hrv: "HRV estimates", spo2: "blood oxygen", temp: "temperature", sleep: "sleep", daily: "daily totals",

@@ -1,12 +1,12 @@
 // Today: three daily scores, one plain-English line, vitals tiles, today's heart rate, quick actions.
-import * as db from "../core/db.js?v=20260924145338";
-import { addDaysStr, clock, dayOf, hhmm, relTime, stamp, toMs } from "../core/time.js?v=20260924145338";
-import { fmtTemp, fmtTempDelta, tempDelta, tempUnit } from "../core/units.js?v=20260924145338";
-import { headline } from "../analytics/scores.js?v=20260924145338";
-import { banner, card, cardHead, deltaChip, header, ring, scoreStatus, section, sparkline, tile } from "../ui/components.js?v=20260924145338";
-import { lineChart } from "../ui/charts.js?v=20260924145338";
-import { h, icon } from "../ui/h.js?v=20260924145338";
-import { dateLong, fmtInt, greeting, series, syncPill, vsUsual } from "./common.js?v=20260924145338";
+import * as db from "../core/db.js?v=20260924162635";
+import { addDaysStr, clock, dayOf, hhmm, relTime, stamp, toMs } from "../core/time.js?v=20260924162635";
+import { fmtTemp, fmtTempDelta, tempDelta, tempUnit } from "../core/units.js?v=20260924162635";
+import { headline } from "../analytics/scores.js?v=20260924162635";
+import { banner, card, cardHead, deltaChip, header, ring, scoreStatus, section, sparkline, tile } from "../ui/components.js?v=20260924162635";
+import { lineChart } from "../ui/charts.js?v=20260924162635";
+import { h, icon } from "../ui/h.js?v=20260924162635";
+import { dateLong, fmtInt, greeting, series, syncPill, vsUsual } from "./common.js?v=20260924162635";
 
 export default async function today(ctx) {
   const date = dayOf();

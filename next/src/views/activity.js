@@ -1,15 +1,15 @@
 // Activity: steps vs an age-based goal (Paluch 2022), brisk minutes (≥ 100 steps/min, Tudor-Locke)
 // toward 150 a week (WHO 2020), heart-rate workouts you can tag with type and effort (session-RPE load,
 // Foster 2001 — the validated load measure for lifting), and two weeks of steps.
-import { stepGoal } from "../analytics/scores.js?v=20260924145338";
-import * as db from "../core/db.js?v=20260924145338";
-import { addDaysStr, clock, dayOf } from "../core/time.js?v=20260924145338";
-import { distUnit, km } from "../core/units.js?v=20260924145338";
-import { barChart } from "../ui/charts.js?v=20260924145338";
-import { card, cardHead, closeSheet, detailHeader, header, ring, row, section, sheet, toast } from "../ui/components.js?v=20260924145338";
-import { h, icon } from "../ui/h.js?v=20260924145338";
-import { dateLong, dateShort, dayLabel, fmtInt } from "./common.js?v=20260924145338";
-import { npcra } from "../analytics/circadian.js?v=20260924145338";
+import { stepGoal } from "../analytics/scores.js?v=20260924162635";
+import * as db from "../core/db.js?v=20260924162635";
+import { addDaysStr, clock, dayOf } from "../core/time.js?v=20260924162635";
+import { distUnit, km } from "../core/units.js?v=20260924162635";
+import { barChart } from "../ui/charts.js?v=20260924162635";
+import { card, cardHead, closeSheet, detailHeader, header, ring, row, section, sheet, toast } from "../ui/components.js?v=20260924162635";
+import { h, icon } from "../ui/h.js?v=20260924162635";
+import { dateLong, dateShort, dayLabel, fmtInt } from "./common.js?v=20260924162635";
+import { npcra } from "../analytics/circadian.js?v=20260924162635";
 
 const KINDS = [["walk", "Walk"], ["run", "Run"], ["strength", "Strength"], ["cycle", "Cycling"], ["other", "Other"]];
 

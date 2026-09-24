@@ -1,12 +1,12 @@
 // You: profile, health questions (beta-blocker, STOP-Bang), band and its schedule, display, data.
-import * as db from "../core/db.js?v=20260924145338";
-import { DEFAULT_SCHEDULE } from "../core/sync.js?v=20260924145338";
-import { relTime } from "../core/time.js?v=20260924145338";
-import { cmToFtIn, ftInToCm, isUS, kg, lbToKg } from "../core/units.js?v=20260924145338";
-import { ensureSummaries, SUMMARY_VERSION } from "../analytics/summary.js?v=20260924145338";
-import { scoreDays } from "../analytics/scores.js?v=20260924145338";
-import { card, cardHead, chip, closeSheet, detailHeader, row, section, segmented, sheet, toast } from "../ui/components.js?v=20260924145338";
-import { h, icon } from "../ui/h.js?v=20260924145338";
+import * as db from "../core/db.js?v=20260924162635";
+import { DEFAULT_SCHEDULE } from "../core/sync.js?v=20260924162635";
+import { relTime } from "../core/time.js?v=20260924162635";
+import { cmToFtIn, ftInToCm, isUS, kg, lbToKg } from "../core/units.js?v=20260924162635";
+import { ensureSummaries, SUMMARY_VERSION } from "../analytics/summary.js?v=20260924162635";
+import { scoreDays } from "../analytics/scores.js?v=20260924162635";
+import { card, cardHead, chip, closeSheet, detailHeader, row, section, segmented, sheet, toast } from "../ui/components.js?v=20260924162635";
+import { h, icon } from "../ui/h.js?v=20260924162635";
 
 /** STOP-Bang (Chung 2008/2016): 8 yes/no items; 0-2 low, 3-4 intermediate, 5-8 high risk of
  *  obstructive sleep apnea. Score ≥ 3: ~90% sensitivity for moderate-to-severe OSA (Nagappa 2015). */
