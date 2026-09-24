@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-dir="hybrid" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>Pulse concepts</title>
+  <link rel="stylesheet" href="concept.css?v=20260924145338">
+</head>
+<body>
+  <div class="switch" role="group" aria-label="Design direction">
+    <button type="button" data-dir="luminous">Luminous</button>
+    <button type="button" data-dir="instrument">Instrument</button>
+    <button type="button" data-dir="hybrid">Hybrid</button>
+    <button type="button" data-theme-toggle aria-label="Dark or light">☾</button>
+  </div>
+  <main id="app" class="wrap"></main>
+  <nav class="tabbar" aria-label="Sections">
+    <button type="button" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h3.5l2.5-6 4 12 2.5-6H20"/></svg>Today</button>
+    <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13h4l2-5 3 10 3-13 2 8h6"/></svg>Measure</button>
+    <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profile</button>
+  </nav>
+  <script type="module" src="concept.js?v=20260924145338"></script>
+</body>
+</html>
