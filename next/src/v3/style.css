@@ -1,10 +1,10 @@
 /* Pulse v3. Dark + light (follows the phone unless set in Profile). Motion is meaningful and honours Reduce Motion. */
-@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20260924233355") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20260924233355") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20260924233355") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20260924233355") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20260924233355") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20260924233355") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20260925073227") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20260925073227") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20260925073227") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20260925073227") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20260925073227") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20260925073227") format("woff2"); font-display: swap; }
 
 :root, [data-theme="dark"] {
   --bg: #05060a; --card: rgba(255,255,255,.045); --card-hi: rgba(255,255,255,.075); --line: rgba(255,255,255,.08); --grid: rgba(255,255,255,.06);
@@ -714,3 +714,16 @@ html, body { font-size: 16px; }
 .cring svg { width: 100%; height: 100%; }
 .cr-c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .cr-p { font-weight: 600; font-size: 14px; margin-top: 2px; max-width: 150px; }
+.qual { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--ink2); }
+.qual em { font-style: normal; color: var(--ink3); }
+.sub-h > span { float: right; letter-spacing: 0; text-transform: none; font-weight: 500; }
+.an-more { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--grid); font-size: 13.5px; color: var(--ink2); cursor: pointer; }
+.sub-h + .an-more { border-top: 0; }
+.an-more .chev { color: var(--ink3); }
+.older { color: var(--ink2); font-weight: 500; }
+.lab-sum { margin: 14px 0 0; }
+.lab-sum b.hi { color: var(--bad); }
+.sub-h.tap { cursor: pointer; padding: 4px 0; }
+.sub-h > span.hi { color: var(--bad); }
+.sub-h i.chev { font-style: normal; margin-left: 6px; color: var(--ink3); }
+.qual { flex-direction: column; gap: 4px; }

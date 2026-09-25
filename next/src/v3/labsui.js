@@ -1,40 +1,22 @@
 // Labs: on-phone PDF import (with a review step) or manual entry, the panel over time, what it implies (each
 // paper's own formula), heart risk (AHA PREVENT from labs + home BP), and the lab context other screens use.
-import { derived } from "../analytics/labs.js?v=20260924233355";
-import { prevent } from "../analytics/prevent.js?v=20260924233355";
-import { bpSummary } from "./bp.js?v=20260924233355";
-import { mean } from "./stats.js?v=20260924233355";
-import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20260924233355";
+import { derived } from "../analytics/labs.js?v=20260925073227";
+import { CANONICAL } from "../labs/pdfimport.js?v=20260925073227";
+import { phenoAge, PHENOAGE_INPUTS } from "../analytics/bioage.js?v=20260925073227";
+import { prevent } from "../analytics/prevent.js?v=20260925073227";
+import { bpSummary } from "./bp.js?v=20260925073227";
+import { mean } from "./stats.js?v=20260925073227";
+import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20260925073227";
 
-/** Analytes Pulse tracks (US conventional units). ref = a typical adult range, used only when the report's
- *  own reference range isn't available; the lab's range and flag always win. */
-export const ANALYTES = [
-  { k: "ldl", n: "LDL cholesterol", u: "mg/dL", ref: [0, 99], grp: "Lipids" },
-  { k: "hdl", n: "HDL cholesterol", u: "mg/dL", ref: [40, 200], grp: "Lipids" },
-  { k: "tg", n: "Triglycerides", u: "mg/dL", ref: [0, 149], grp: "Lipids" },
-  { k: "tc", n: "Total cholesterol", u: "mg/dL", ref: [0, 199], grp: "Lipids" },
-  { k: "apob", n: "Apolipoprotein B", u: "mg/dL", ref: [0, 89], grp: "Lipids" },
-  { k: "lpa", n: "Lipoprotein(a)", u: "nmol/L", ref: [0, 74], grp: "Lipids" },
-  { k: "glucose", n: "Fasting glucose", u: "mg/dL", ref: [65, 99], grp: "Metabolic" },
-  { k: "insulin", n: "Fasting insulin", u: "µIU/mL", ref: [0, 18.4], grp: "Metabolic" },
-  { k: "a1c", n: "HbA1c", u: "%", ref: [0, 5.6], grp: "Metabolic" },
-  { k: "uric", n: "Uric acid", u: "mg/dL", ref: [2.5, 8], grp: "Metabolic" },
-  { k: "hscrp", n: "hs-CRP", u: "mg/L", ref: [0, 1.0], grp: "Inflammation" },
-  { k: "egfr", n: "eGFR", u: "mL/min", ref: [60, 200], grp: "Kidney" },
-  { k: "creatinine", n: "Creatinine", u: "mg/dL", ref: [0.6, 1.3], grp: "Kidney" },
-  { k: "bun", n: "Urea nitrogen (BUN)", u: "mg/dL", ref: [7, 25], grp: "Kidney" },
-  { k: "alt", n: "ALT", u: "U/L", ref: [9, 46], grp: "Liver" },
-  { k: "ast", n: "AST", u: "U/L", ref: [10, 40], grp: "Liver" },
-  { k: "tsh", n: "TSH", u: "mIU/L", ref: [0.4, 4.5], grp: "Thyroid & hormones" },
-  { k: "testosterone", n: "Testosterone", u: "ng/dL", ref: [250, 1100], grp: "Thyroid & hormones" },
-  { k: "vitd", n: "Vitamin D (25-OH)", u: "ng/mL", ref: [30, 100], grp: "Vitamins & minerals" },
-  { k: "ferritin", n: "Ferritin", u: "ng/mL", ref: [30, 400], grp: "Vitamins & minerals" },
-  { k: "sodium", n: "Sodium", u: "mmol/L", ref: [135, 146], grp: "Electrolytes" },
-  { k: "potassium", n: "Potassium", u: "mmol/L", ref: [3.5, 5.3], grp: "Electrolytes" },
-  { k: "wbc", n: "White blood cells", u: "×10³/µL", ref: [3.8, 10.8], grp: "Blood count" },
-  { k: "hemoglobin", n: "Hemoglobin", u: "g/dL", ref: [13.2, 17.1], grp: "Blood count" },
-  { k: "platelets", n: "Platelets", u: "×10³/µL", ref: [140, 400], grp: "Blood count" },
-];
+/** Analytes Pulse tracks: the parser's canonical catalog (US conventional units, grouped). ref = a typical
+ *  adult range used only when the report's own range isn't available; the lab's range and flag always win. */
+const REF = { ldl: [0, 99], hdl: [40, 200], tg: [0, 149], tc: [0, 199], apob: [0, 89], lpa: [0, 74], glucose: [65, 99], insulin: [0, 18.4], a1c: [0, 5.6], uric: [2.5, 8],
+  hscrp: [0, 1.0], egfr: [60, 200], creatinine: [0.6, 1.3], bun: [7, 25], alt: [9, 46], ast: [10, 40], tsh: [0.4, 4.5], testosterone: [250, 1100], vitd: [30, 100], ferritin: [30, 400],
+  sodium: [135, 146], potassium: [3.5, 5.3], wbc: [3.8, 10.8], hemoglobin: [13.2, 17.1], platelets: [140, 400], homocysteine: [0, 11], omega3: [8, 100], albumin: [3.6, 5.1],
+  alp: [36, 130], rdw: [11, 15], mcv: [80, 100], ldl_p: [0, 1138], ldl_small: [0, 142], ggt: [3, 70], b12: [200, 1100], magnesium: [1.5, 2.5] };
+const MANUAL = ["ldl", "hdl", "tg", "tc", "apob", "lpa", "glucose", "insulin", "a1c", "hscrp", "egfr", "creatinine", "alt", "ast", "tsh", "vitd", "ferritin", "albumin", "alp", "wbc", "lymph_pct", "mcv", "rdw"];
+export const ANALYTES = CANONICAL.map((c) => { const k = c.key === "uricacid" ? "uric" : c.key; return { k, n: c.name, u: c.unit, grp: c.group, ref: REF[k] ?? null }; });
+export const MANUAL_ANALYTES = ANALYTES.filter((a) => MANUAL.includes(a.k));
 const ALIAS = { uric_acid: "uric", uricacid: "uric", vitamin_d: "vitd", vitd25: "vitd", crp: "hscrp", hs_crp: "hscrp", hgb: "hemoglobin", plt: "platelets", lpa_nmol: "lpa" };
 export const normKey = (k) => ALIAS[k] ?? k;
 export const bmiOf = (p) => (p.height && p.weight ? p.weight / (p.height / 100) ** 2 : null);
@@ -48,6 +30,7 @@ export function latestLabs() {
 }
 const flagOf = (a, v, meta) => {
   if (meta?.flag) return /h/i.test(meta.flag) ? ["H", "hi"] : /l/i.test(meta.flag) ? ["L", "lo"] : ["", ""];
+  if (!a.ref) return ["", ""];
   return v > a.ref[1] ? ["H", "hi"] : v < a.ref[0] ? ["L", "lo"] : ["", ""];
 };
 
@@ -104,26 +87,74 @@ function labsCard() {
   if (!Ls.length) return `<p class="note" style="margin:0 0 14px">Import the PDF from Quest, Labcorp or Function Health. It's read on this phone and you check every value before it's saved; nothing leaves the phone.</p>${add}`;
   const groups = [...new Set(ANALYTES.map((a) => a.grp))];
   const spark = (a) => { const v = Ls.map((d) => d.v[a.k]).filter((z) => z != null); if (v.length < 2) return S(60, 22, ""); const x = sc(0, v.length - 1, 4, 56), y = sc(Math.min(...v), Math.max(...v) + 1e-9, 18, 4); return S(60, 22, `<path d="${poly(v.map((z, i) => [x(i), y(z)]))}" fill="none" stroke="${css("--ink3")}" stroke-width="1.4"/>${v.map((z, i) => `<circle cx="${x(i)}" cy="${y(z)}" r="${i === v.length - 1 ? 3 : 2}" fill="${i === v.length - 1 ? css("--ink") : css("--ink3")}"/>`).join("")}`); };
-  return add + groups.map((g) => {
-    const rows = ANALYTES.filter((a) => a.grp === g && Ls.some((d) => d.v[a.k] != null));
-    if (!rows.length) return "";
-    return `<div class="sub-h">${g}</div>` + rows.map((a) => {
-      const withV = Ls.filter((d) => d.v[a.k] != null), last = withV[withV.length - 1], v = last.v[a.k], meta = last.meta?.[a.k], p = withV.length > 1 ? withV[withV.length - 2].v[a.k] : null, [f, cls] = flagOf(a, v, meta), id = `lab-${a.k}`;
-      const ref = meta?.ref ?? (a.ref[1] >= 200 ? `≥${a.ref[0]}` : a.ref[0] ? `${a.ref[0]}–${a.ref[1]}` : `<${a.ref[1]}`);
-      return `<div class="an" data-expand="${id}"><div class="an-n">${a.n}<small>ref ${esc(ref)}</small></div>${spark(a)}<div class="an-v"><b class="${cls}">${v}${f ? `<sup>${f}</sup>` : ""}</b><small>${esc(meta?.unit ?? a.u)}${p != null ? ` · ${v < p ? "↓" : v > p ? "↑" : "="} ${Math.abs(v - p).toFixed(a.k === "a1c" || a.k === "hscrp" || a.k === "insulin" || a.k === "creatinine" || a.k === "tsh" ? 1 : 0)}` : ""}</small></div></div>
+  // Each test shows its newest draw (older panels fill in tests a newer one didn't repeat, dated). Out-of-range
+  // results stay visible; in-range ones fold into one "N in range" row per group.
+  const newest = Ls[Ls.length - 1].date;
+  const one = (a) => {
+    const withV = Ls.filter((d) => d.v[a.k] != null), last = withV[withV.length - 1], v = last.v[a.k], meta = last.meta?.[a.k], p = withV.length > 1 ? withV[withV.length - 2].v[a.k] : null, [f, cls] = flagOf(a, v, meta), id = `lab-${a.k}`;
+    const ref = meta?.ref ?? (!a.ref ? "" : a.ref[1] >= 200 ? `≥${a.ref[0]}` : a.ref[0] ? `${a.ref[0]}–${a.ref[1]}` : `<${a.ref[1]}`);
+    const html = `<div class="an" data-expand="${id}"><div class="an-n">${a.n}${ref || last.date !== newest ? `<small>${ref ? `ref ${esc(ref)}` : ""}${last.date !== newest ? `${ref ? " · " : ""}<span class="older">${shortLabel(last.date)}</span>` : ""}</small>` : ""}</div>${spark(a)}<div class="an-v"><b class="${cls}">${v}${f ? `<sup>${f}</sup>` : ""}</b><small>${esc(a.u || meta?.unit || "")}${p != null ? ` · ${v < p ? "↓" : v > p ? "↑" : "="} ${Math.abs(v - p).toFixed(a.k === "a1c" || a.k === "hscrp" || a.k === "insulin" || a.k === "creatinine" || a.k === "tsh" ? 1 : 0)}` : ""}</small></div></div>
         ${st.open.has(id) ? `<div class="an-x">${withV.map((d) => `<span>${shortLabel(d.date)}<b>${d.v[a.k]}</b></span>`).join("")}</div>` : ""}`;
-    }).join("");
-  }).join("") + `<p class="note">${Ls.map((d) => `${labLabel(d.date)}${d.source === "pdf" ? " (PDF)" : ""} · <button class="link" data-dellab="${esc(d.date)}">remove</button>`).join("<br>")}</p>`;
+    return { flagged: !!cls, html };
+  };
+  let total = 0, flagged = 0;
+  const body = groups.map((g) => {
+    const rows = ANALYTES.filter((a) => a.grp === g && Ls.some((d) => d.v[a.k] != null)).map(one);
+    if (!rows.length) return "";
+    const bad = rows.filter((r) => r.flagged), ok = rows.filter((r) => !r.flagged), id = `lg-${g}`, open = st.open.has(id);
+    total += rows.length; flagged += bad.length;
+    // A group with nothing out of range is a single tappable header; otherwise flagged rows, then the fold.
+    if (!bad.length) return `<div class="sub-h tap" data-expand="${id}">${g}<span>${rows.length} in range <i class="chev">${open ? "⌃" : "›"}</i></span></div>${open ? ok.map((r) => r.html).join("") : ""}`;
+    return `<div class="sub-h">${g}<span class="hi">${bad.length} of ${rows.length} out of range</span></div>${bad.map((r) => r.html).join("")}
+      ${ok.length ? (open ? ok.map((r) => r.html).join("") : "") + `<div class="an-more" data-expand="${id}">${open ? "Hide in-range results" : `${ok.length} more in range`}<span class="chev">${open ? "⌃" : "›"}</span></div>` : ""}`;
+  }).join("");
+  const dates = [...new Set(Ls.map((d) => d.date))];
+  return add + `<p class="note lab-sum"><b>${total}</b> results · <b class="${flagged ? "hi" : ""}">${flagged}</b> out of range · newest draw ${shortLabel(newest)}${dates.length > 1 ? `; tests it didn't repeat come from earlier draws (dated)` : ""}.</p>` + body + otherResults(Ls) + `<p class="note">${Ls.map((d) => `${labLabel(d.date)}${d.source === "pdf" ? " (PDF)" : ""} · <button class="link" data-dellab="${esc(d.date)}">remove</button>`).join("<br>")}</p>`;
+}
+/** Results outside the catalog (kept, nothing lost) and qualitative ones: the newest draw of each, dated. */
+function otherResults(Ls) {
+  const ex = {}, ql = {};
+  for (const d of Ls) { for (const [k, x] of Object.entries(d.extras ?? {})) ex[k] = { ...x, date: d.date }; for (const [k, x] of Object.entries(d.qual ?? {})) ql[k] = { ...x, date: d.date }; }
+  const dated = (o) => new Set(Object.values(o).map((x) => x.date)).size > 1, when = (o, x) => (dated(o) ? ` · ${shortLabel(x.date)}` : "");
+  const head = (t, o) => `<div class="sub-h">${t}${dated(o) ? "" : ` · ${shortLabel(Object.values(o)[0].date)}`}</div>`;
+  let out = "";
+  if (Object.keys(ex).length) out += head("Other results", ex) + Object.values(ex).map((x) => `<div class="an"><div class="an-n">${esc(x.name)}${x.ref || dated(ex) ? `<small>${x.ref ? `ref ${esc(x.ref)}` : ""}${esc(when(ex, x))}</small>` : ""}</div><span></span><div class="an-v"><b class="${/h/i.test(x.flag ?? "") ? "hi" : /l/i.test(x.flag ?? "") ? "lo" : ""}">${esc(x.value)}${x.flag ? `<sup>${esc(x.flag)}</sup>` : ""}</b><small>${esc(x.unit ?? "")}</small></div></div>`).join("");
+  if (Object.keys(ql).length) { const open = st.open.has("lg-qual");
+    out += `<div class="sub-h tap" data-expand="lg-qual">Qualitative<span>${Object.keys(ql).length} results <i class="chev">${open ? "⌃" : "›"}</i></span></div>` + (open ? `<div class="qual">${Object.values(ql).map((x) => `<span><em>${esc(x.name)}</em> ${esc(x.text)}${esc(when(ql, x))}</span>`).join("")}</div>` : ""); }
+  return out;
+}
+/** Biological age from the newest panel with every input: PhenoAge (Levine 2018), plus any other verified model. */
+export function bioAge(p) {
+  const L = latestLabs(), vals = Object.fromEntries(Object.entries(L).map(([k, x]) => [k, x.value]));
+  const age = p?.age; if (!age) return null;
+  const pa = phenoAge(vals, age);
+  return pa?.phenoAge != null ? pa : { missing: pa?.missing ?? PHENOAGE_INPUTS.map((z) => z.key ?? z) };
+}
+function bioAgeCard(p) {
+  const b = bioAge(p);
+  if (!b) return "";
+  if (b.phenoAge == null) return `<p class="note" style="margin:0">Biological age (PhenoAge) needs albumin, creatinine, glucose, hs-CRP, lymphocyte %, MCV, RDW, alkaline phosphatase and white cell count from one panel${b.missing?.length ? `; missing: ${esc(b.missing.join(", "))}` : ""}.</p>`;
+  const d = b.delta;
+  // Each past panel is scored at the age you were when it was drawn, so the trend isn't inflated by ageing alone.
+  const ageAt = (date) => p.age - (Date.now() - new Date(`${date}T12:00:00`)) / (365.25 * 864e5);
+  const hist = (D.labs ?? []).map((panel) => { const r = phenoAge(panel.v ?? {}, ageAt(panel.date)); return r?.phenoAge != null ? [panel.date, r.phenoAge, r.delta] : null; }).filter(Boolean);
+  return `<div class="risk-h"><div><div class="lbl">Biological age · PhenoAge</div><div class="num big2">${b.phenoAge.toFixed(1)}<small>years</small></div></div><span class="badge ${d <= -1 ? "good" : d >= 1 ? "bad" : "watch"}">${d <= 0 ? `${Math.abs(d).toFixed(1)} younger` : `${d.toFixed(1)} older`}</span></div>
+    <p class="note">From 9 routine blood markers and your age (Levine 2018, trained on NHANES mortality). It estimates the age at which your blood chemistry would be average; each year of "acceleration" was associated with roughly 9% higher mortality risk in the original cohort. ${hist.length > 1 ? `Across your complete panels (vs your age then): ${hist.map(([dt2, , dd]) => `${shortLabel(dt2)} ${dd <= 0 ? "−" : "+"}${Math.abs(dd).toFixed(1)}`).join(" → ")}.` : ""}</p>
+    <div class="kv">${PHENOAGE_INPUTS.map((z) => { const k = z.key ?? z, x = latestLabs()[k === "uricacid" ? "uric" : k]; return x ? `<div><span>${esc(z.name ?? k)}</span><b>${x.value}</b><em>${shortLabel(x.date)}</em></div>` : ""; }).join("")}</div>
+    <p class="note">Other blood-age formulas (Klemera–Doubal, commercial scores) weight markers differently, so their numbers won't match exactly; the trend across your annual panels is what matters. The headline uses your current age with your newest result for each marker (draw dates shown).</p>`;
 }
 function indicesCard(p) {
-  const b = bmiOf(p), all = (D.labs ?? []).map((d) => derived(d.v, { bmi: b, sex: p.sex })), cur = all[all.length - 1] ?? [];
+  const b = bmiOf(p), ctxD = { bmi: b, sex: p.sex, age: p.age, diabetes: !!p.diabetes }, all = (D.labs ?? []).map((d) => derived(d.v, ctxD));
+  // Current values use the newest result for each test, falling back to older panels where a test wasn't repeated.
+  const L = latestLabs(), cur = derived(Object.fromEntries(Object.entries(L).map(([k, x]) => [k, x.value])), ctxD);
   if (!cur.length) return `<p class="note" style="margin:0">Add glucose, insulin, triglycerides and cholesterol to see insulin-resistance and lipid indices, each with its paper's formula.</p>`;
   return cur.map((d) => {
-    const hist = all.map((set) => set.find((z) => z.key === d.key)?.value), id = `ix-${d.key}`;
-    const dec = Math.max(0, ...hist.filter((v) => v != null).map((v) => (String(v).split(".")[1] ?? "").length)), fx = (v) => (v == null ? "—" : v.toFixed(dec));
-    return `<div class="ix" data-expand="${id}"><div class="ix-n">${d.name}<small class="${d.band[1] === "good" ? "ok" : d.band[1] === "watch" ? "lo" : d.band[1] === "bad" ? "hi" : ""}">${d.band[0]}</small></div><div class="ix-t">${hist.length > 1 ? hist.map(fx).join(" → ") : ""}</div><div class="ix-v"><b>${fx(d.value)}</b>${d.unit ? `<small>${d.unit}</small>` : ""}</div></div>
+    const Ls = D.labs ?? [], pts = all.map((set, i) => [Ls[i].date, set.find((z) => z.key === d.key)?.value]).filter(([, v]) => v != null), id = `ix-${d.key}`;
+    const dec = Math.max(0, ...pts.map(([, v]) => (String(v).split(".")[1] ?? "").length)), fx = (v) => (v == null ? "—" : v.toFixed(dec));
+    const trail = pts.length > 1 ? pts.map(([, v]) => fx(v)).join(" → ") : pts.length === 1 && pts[0][0] !== Ls[Ls.length - 1].date ? `<span class="older">${shortLabel(pts[0][0])}</span>` : "";
+    return `<div class="ix" data-expand="${id}"><div class="ix-n">${d.name}<small class="${d.band[1] === "good" ? "ok" : d.band[1] === "watch" ? "lo" : d.band[1] === "bad" ? "hi" : ""}">${d.band[0]}</small></div><div class="ix-t">${trail}</div><div class="ix-v"><b>${fx(d.value)}</b>${d.unit ? `<small>${d.unit}</small>` : ""}</div></div>
       ${st.open.has(id) ? `<div class="ix-x"><code>${d.formula}</code><p>${d.note}</p><p class="cite">${d.cite}</p></div>` : ""}`;
-  }).join("") + `<p class="note">Computed from your panels with each paper's own formula and cut-offs; tap a row for the math.</p>`;
+  }).join("") + `<p class="note">Each index uses your newest result for every test it needs${[...new Set(Object.values(L).map((x) => x.date))].length > 1 ? ` (drawn from ${[...new Set(Object.values(L).map((x) => x.date))].sort().reverse().map(shortLabel).join(" and ")})` : ""}, with each paper's own formula and cut-offs; tap a row for the math. Arrows show the index at each draw.</p>`;
 }
 /** Weekly resting HR and HRV over the past year, with each lab draw pinned. */
 export function labsVsBand() {
@@ -143,6 +174,7 @@ export function labsBlock(ctx) {
   const p = ctx.profile;
   return `<div class="sec rise" style="--i:7" id="labs"><h2>Labs</h2><span class="lbl">${(D.labs ?? []).length} panel${(D.labs ?? []).length === 1 ? "" : "s"}</span></div>
     <div class="card rise" style="--i:7">${labsCard()}</div>
+    ${(D.labs ?? []).length ? `<div class="sec rise" style="--i:8"><h2>Biological age</h2><span class="lbl">from your blood</span></div><div class="card rise" style="--i:8">${bioAgeCard(p)}</div>` : ""}
     ${(D.labs ?? []).length ? `<div class="sec rise" style="--i:8"><h2>What your labs imply</h2><span class="lbl">derived</span></div><div class="card rise" style="--i:8">${indicesCard(p)}${labsVsBand()}</div>` : ""}
     <div class="sec rise" style="--i:8"><h2>Heart risk</h2><span class="lbl">labs + home BP</span></div>
     <div class="card rise" style="--i:8" id="prevent">${preventCard(p)}</div>`;
@@ -167,16 +199,20 @@ export function labContext(key) {
   return out.length ? `<div class="labctx"><span class="lbl">From your labs</span>${out.map((t) => `<p>${t}</p>`).join("")}<button class="link" data-close data-golabs>See labs ›</button></div>` : "";
 }
 
-/** Review sheet for a parsed PDF: every value checkable and editable before saving. */
+/** Review sheet for a parsed PDF: every value checkable and editable before saving, grouped like the lab list. */
 export function labReviewSheet(draft) {
   const vals = Object.entries(draft.values ?? {}).map(([k, v]) => [normKey(k), v]).filter(([k]) => ANALYTES.some((a) => a.k === k));
-  const unknown = [...Object.entries(draft.values ?? {}).filter(([k]) => !ANALYTES.some((a) => a.k === normKey(k))).map(([k, v]) => ({ name: k, value: v.value, unit: v.unit })), ...(draft.unmatched ?? [])];
+  const extras = Object.entries(draft.extras ?? {}), qual = Object.entries(draft.qualitative ?? {});
+  const groups = [...new Set(ANALYTES.map((a) => a.grp))];
+  const row = (id, name, v, unit, flag, page, x = false) => `<label class="full rv"><span class="rv-n"><input type="checkbox" name="use_${id}" checked> ${esc(name)}</span><span class="rv-v"><input name="v_${id}" inputmode="decimal" value="${esc(v)}"><em>${esc(unit ?? "")}${flag ? ` · ${esc(flag)}` : ""}${page ? ` · p.${page}` : ""}</em></span></label>`;
+  const total = vals.length + extras.length + qual.length;
   return `<div class="sh-h"><b>Check your lab report</b><button class="back" data-sheetclose>Cancel</button></div>
-    <p>${vals.length ? `Pulse found <b>${vals.length}</b> values${draft.lab ? ` in this ${esc(draft.lab)} report` : ""}. Check each one against the PDF (page shown) and untick anything wrong.` : "Pulse couldn't find any values it recognises in this PDF. You can type them in instead."}</p>
+    <p>${total ? `Pulse found <b>${total}</b> results${draft.lab ? ` in this ${esc(draft.lab)} report` : ""}. Check them against the PDF (page shown) and untick anything wrong.` : "Pulse couldn't find any results in this PDF. You can type values in instead."}</p>
     <form data-form="labreview" class="fform">
       <label class="full">Date collected<input name="date" type="date" value="${esc(draft.date ?? new Date().toISOString().slice(0, 10))}" required></label>
-      ${vals.map(([k, v]) => { const a = ANALYTES.find((z) => z.k === k); return `<label class="full rv"><span class="rv-n"><input type="checkbox" name="use_${k}" checked> ${a.n}</span><span class="rv-v"><input name="v_${k}" inputmode="decimal" value="${esc(v.value)}"><em>${esc(v.unit ?? a.u)}${v.flag ? ` · ${esc(v.flag)}` : ""}${v.page ? ` · p.${v.page}` : ""}</em></span></label>`; }).join("")}
-      <button class="cta full" type="submit" ${vals.length ? "" : "disabled"}>Save ${vals.length} values</button></form>
-    ${unknown.length ? `<details class="unk"><summary>${unknown.length} other result${unknown.length === 1 ? "" : "s"} not tracked yet</summary><p>${unknown.slice(0, 40).map((u) => `${esc(u.name)} ${esc(u.value ?? "")} ${esc(u.unit ?? "")}`).join(" · ")}</p></details>` : ""}
+      ${groups.map((g) => { const rows = vals.filter(([k]) => ANALYTES.find((a) => a.k === k)?.grp === g); return rows.length ? `<div class="sub-h full">${g}</div>${rows.map(([k, v]) => { const a = ANALYTES.find((z) => z.k === k); return row(k, a.n, v.value, v.unit ?? a.u, v.flag, v.page); }).join("")}` : ""; }).join("")}
+      ${extras.length ? `<div class="sub-h full">Other results</div>${extras.map(([k, x]) => row(`x_${k}`, x.name, x.value, x.unit, x.flag, x.page)).join("")}` : ""}
+      ${qual.length ? `<div class="sub-h full">Qualitative</div><p class="note full" style="margin:0">${qual.map(([, q]) => `${esc(q.name)}: ${esc(q.text)}`).join(" · ")}</p>` : ""}
+      <button class="cta full" type="submit" ${total ? "" : "disabled"}>Save ${total} results</button></form>
     <p class="note">Read on this phone only. Units are converted to US conventional where the report uses SI units.</p>`;
 }

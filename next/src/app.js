@@ -1,23 +1,24 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260924233355";
-import * as db from "./core/db.js?v=20260924233355";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924233355";
-import { stamp } from "./core/time.js?v=20260924233355";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924233355";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924233355";
-import { scoreDays } from "./analytics/scores.js?v=20260924233355";
-import { buildModel } from "./v3/model.js?v=20260924233355";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924233355";
-import { drill, M } from "./v3/drill.js?v=20260924233355";
-import { today } from "./v3/today.js?v=20260924233355";
-import { night } from "./v3/night.js?v=20260924233355";
-import { trends } from "./v3/trends.js?v=20260924233355";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924233355";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924233355";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924233355";
-import { advSheet } from "./v3/advanced.js?v=20260924233355";
-import { cycleView } from "./v3/cycleui.js?v=20260924233355";
+import { Band } from "./core/ble.js?v=20260925073227";
+import * as db from "./core/db.js?v=20260925073227";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260925073227";
+import { stamp } from "./core/time.js?v=20260925073227";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260925073227";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260925073227";
+import { scoreDays } from "./analytics/scores.js?v=20260925073227";
+import { mergeLabPanel } from "./analytics/labs.js?v=20260925073227";
+import { buildModel } from "./v3/model.js?v=20260925073227";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260925073227";
+import { drill, M } from "./v3/drill.js?v=20260925073227";
+import { today } from "./v3/today.js?v=20260925073227";
+import { night } from "./v3/night.js?v=20260925073227";
+import { trends } from "./v3/trends.js?v=20260925073227";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260925073227";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260925073227";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260925073227";
+import { advSheet } from "./v3/advanced.js?v=20260925073227";
+import { cycleView } from "./v3/cycleui.js?v=20260925073227";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -325,6 +326,13 @@ async function logPeriod(action, date = null) {
   await db.setSetting(ctx.store, "periods", periods.sort((a, b) => (a.start < b.start ? -1 : 1)));
   invalidate(); if (!modal) await stay();
 }
+/** "Saved 47 results · 30 replace older values · 2 kept from a newer draw". */
+function labSavedMsg(m, other) {
+  const parts = [`Saved ${m.saved + other} results`];
+  if (m.replaced) parts.push(`${m.replaced} replace older values`);
+  if (m.newerElsewhere) parts.push(`${m.newerElsewhere} kept from a newer draw`);
+  return parts.join(" · ");
+}
 /** Lab PDF → parsed on this phone (pdf.js, loaded only now) → review sheet. */
 function pickLabPdf() {
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/pdf,.pdf";
@@ -332,7 +340,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924233355");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260925073227");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -447,13 +455,27 @@ document.addEventListener("submit", async (e) => {
   }
   if (kind === "profile" || kind === "obprofile") {
     const p = readProfileForm(f, ctx.profile); if (!p) return;
-    if (kind === "obprofile") { p.betablocker = !!f.betablocker?.checked; await ctx.setProfile(p); if (!(await db.getSetting(ctx.store, "schedule"))) await db.setSetting(ctx.store, "schedule", DEFAULT_SCHEDULE); st.obStep = 2; renderOnboarding(); return; }
+    if (kind === "obprofile") { p.betablocker = !!f.betablocker?.checked; await ctx.setProfile(p); if (!(await db.getSetting(ctx.store, "schedule"))) await db.setSetting(ctx.store, "schedule", DEFAULT_SCHEDULE); st.obStep = 2; renderOnboarding(); if (p.sex === "female" && !((await db.getSetting(ctx.store, "periods")) ?? []).length) showSheet("pastperiods"); return; }
     await ctx.setProfile(p); closeSheet(); await rebuild(); await stay(); return;
   }
   if (kind === "stopbang") {
     const a = { ...(ctx.profile.stopbang ?? {}) };
     for (const k of ["snore", "tired", "observed", "pressure", "neck"]) { const r = f.querySelector(`input[name=${k}]:checked`); if (r) a[k] = r.value === "1"; }
     await ctx.setProfile({ ...ctx.profile, stopbang: a }); closeSheet(); await stay(); return;
+  }
+  if (kind === "pastperiods") {
+    const periods = (await db.getSetting(ctx.store, "periods")) ?? [];
+    for (const k of ["p1", "p2", "p3"]) { const d = f[k]?.value; if (d && !periods.some((p) => Math.abs((new Date(p.start) - new Date(d)) / 864e5) < 10)) periods.push({ start: d, end: null }); }
+    // Past periods are over: give any that started more than a week ago an estimated 5-day length, so no
+    // "has your period ended?" prompt fires for an old one. A period that just started stays open.
+    periods.sort((a, b) => (a.start < b.start ? -1 : 1));
+    const plus = (d, n) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+    const weekAgo = plus(new Date().toISOString().slice(0, 10), -7);
+    for (const p of periods) if (!p.end && p.start < weekAgo) { p.end = plus(p.start, 4); p.endEstimated = true; }
+    await db.setSetting(ctx.store, "periods", periods);
+    closeSheet(); toast("Saved"); invalidate();
+    if (!ctx.profile.onboarded) { st.obStep = 2; renderOnboarding(); } else if (modal) { await prepare(); redrawModal(); render(false); } else await stay();
+    return;
   }
   if (kind === "period") {
     const periods = ((await db.getSetting(ctx.store, "periods")) ?? []).filter((p) => p.start !== f.start.value);
@@ -468,20 +490,24 @@ document.addEventListener("submit", async (e) => {
       const k = normKey(k0), use = f.querySelector(`[name="use_${k}"]`), val = parseFloat(f.querySelector(`[name="v_${k}"]`)?.value);
       if (use?.checked && Number.isFinite(val)) { v[k] = val; meta[k] = { unit: x.unit ?? null, flag: x.flag ?? null, ref: x.ref ?? null }; }
     }
-    if (!Object.keys(v).length) { toast("Nothing selected to save."); return; }
-    const labs = ((await db.getSetting(ctx.store, "labs")) ?? []).filter((x) => x.date !== f.date.value);
-    labs.push({ date: f.date.value, v, meta, source: "pdf", lab: dr.lab ?? null });
-    await db.setSetting(ctx.store, "labs", labs.sort((x, y) => (x.date < y.date ? -1 : 1)));
-    st.labDraft = null; closeSheet(); toast(`Saved ${Object.keys(v).length} lab values`); invalidate(); await stay(); return;
+    const extras = {}, qual = {};
+    for (const [k, x] of Object.entries(dr.extras ?? {})) {
+      const use = f.querySelector(`[name="use_x_${k}"]`), val = parseFloat(f.querySelector(`[name="v_x_${k}"]`)?.value);
+      if (use?.checked && Number.isFinite(val)) extras[k] = { name: x.name, value: val, unit: x.unit ?? null, flag: x.flag ?? null, ref: x.ref ?? null };
+    }
+    for (const [k, q] of Object.entries(dr.qualitative ?? {})) qual[k] = { name: q.name, text: q.text };
+    if (!Object.keys(v).length && !Object.keys(extras).length) { toast("Nothing selected to save."); return; }
+    const m = mergeLabPanel(await db.getSetting(ctx.store, "labs"), { date: f.date.value, v, meta, extras, qual, source: "pdf", lab: dr.lab ?? null });
+    await db.setSetting(ctx.store, "labs", m.labs);
+    st.labDraft = null; closeSheet(); toast(labSavedMsg(m, Object.keys(extras).length + Object.keys(qual).length), 5000); invalidate(); await stay(); return;
   }
   if (kind === "labs") {
     const v = {};
     for (const el of f.querySelectorAll("input[inputmode=decimal]")) { const x = parseFloat(el.value); if (Number.isFinite(x)) v[el.name] = x; }
     if (!Object.keys(v).length) { toast("Enter at least one value."); return; }
-    const labs = ((await db.getSetting(ctx.store, "labs")) ?? []).filter((x) => x.date !== f.date.value);
-    labs.push({ date: f.date.value, v });
-    await db.setSetting(ctx.store, "labs", labs.sort((x, y) => (x.date < y.date ? -1 : 1)));
-    closeSheet(); toast("Lab results saved"); invalidate(); await stay();
+    const m = mergeLabPanel(await db.getSetting(ctx.store, "labs"), { date: f.date.value, v, source: "manual" });
+    await db.setSetting(ctx.store, "labs", m.labs);
+    closeSheet(); toast(labSavedMsg(m, 0), 5000); invalidate(); await stay();
   }
 });
 document.addEventListener("input", (e) => {
@@ -546,7 +572,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260924233355");
+    const { seedDemo } = await import("./demo.js?v=20260925073227");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

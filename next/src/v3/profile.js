@@ -1,9 +1,9 @@
 // Profile: who you are (feeds norms, goals and heart-rate zones), settings, heart risk from labs + home BP,
 // labs and what they imply, the band, your data, and first-run setup. Also the bottom sheets (forms).
-import { cmToFtIn, isUS, kg } from "../core/units.js?v=20260924233355";
-import { mean, sd } from "./stats.js?v=20260924233355";
-import { css, D, esc, header, relMin, st } from "./kit.js?v=20260924233355";
-import { ANALYTES } from "./labsui.js?v=20260924233355";
+import { cmToFtIn, isUS, kg } from "../core/units.js?v=20260925073227";
+import { mean, sd } from "./stats.js?v=20260925073227";
+import { css, D, esc, header, relMin, st } from "./kit.js?v=20260925073227";
+import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20260925073227";
 
 export const bmiOf = (p) => (p.height && p.weight ? p.weight / (p.height / 100) ** 2 : null);
 
@@ -28,7 +28,7 @@ export function profile(ctx) {
       <p class="note">Tap to edit. Used for sleep need, step goals, heart-rate zones and population ranges, and written to the band.</p></div>
     <div class="card rise" style="--i:1"><div class="chips">${tog("betablocker", "Beta-blocker")}${tog("bpMeds", "BP medication")}${tog("statin", "Statin")}${tog("smoker", "Smoker")}${tog("diabetes", "Diabetes")}</div>
       <p class="note">Beta-blockers change heart-rate zones and workout detection; the rest feed the heart-risk estimate.</p>
-      ${p.sex === "female" ? `<div class="setrow" data-sheet="period" style="cursor:pointer"><span>Cycle tracking<em>On for female profiles · log a period</em></span><span class="chev">›</span></div>` : ""}
+      ${p.sex === "female" ? `<div class="setrow" data-sheet="period" style="cursor:pointer"><span>Cycle tracking<em>On for female profiles · log a period</em></span><span class="chev">›</span></div><div class="setrow" data-sheet="pastperiods" style="cursor:pointer"><span>Add past periods<em>2–3 start dates make estimates personal right away</em></span><span class="chev">›</span></div>` : ""}
       <div class="setrow" data-sheet="stopbang" style="cursor:pointer"><span>Sleep apnea screening<em>${sb.answered ? `STOP-Bang ${sb.score} of 8` : "5 quick questions (STOP-Bang)"}</em></span>${sb.answered ? `<span class="badge ${sb.kind}">${sb.risk} risk</span>` : `<span class="chev">›</span>`}</div></div>
     <div class="sec rise" style="--i:2"><h2>Settings</h2><span class="lbl">this phone</span></div>
     <div class="card rise" style="--i:2">
@@ -73,6 +73,10 @@ export function sheet(kind, ctx) {
       <form data-form="stopbang">${qs.map(([k, q2]) => `<div class="yn"><p>${q2}</p><div class="seg small inline"><label><input type="radio" name="${k}" value="1" ${a[k] === true ? "checked" : ""}><span>Yes</span></label><label><input type="radio" name="${k}" value="0" ${a[k] === false ? "checked" : ""}><span>No</span></label></div></div>`).join("")}
       <button class="cta" type="submit" style="margin-top:14px">Save answers</button></form>`;
   }
+  if (kind === "pastperiods") return `<div class="sh-h"><b>Your last few periods</b><button class="back" data-sheetclose>${st.obStep != null ? "Skip" : "Cancel"}</button></div>
+    <p>The start dates of your last 2–3 periods let Pulse estimate your next one right away. Approximate dates are fine; leave any you don't know blank.</p>
+    <form data-form="pastperiods" class="fform">${[1, 2, 3].map((n) => `<label class="full">${n === 1 ? "Most recent start" : n === 2 ? "The one before" : "And before that"}<input name="p${n}" type="date"></label>`).join("")}
+      <button class="cta full" type="submit">Save</button></form>`;
   if (kind === "period") return `<div class="sh-h"><b>Log a period</b><button class="back" data-sheetclose>Cancel</button></div>
     <p>Add the day it started, and the day it ended if it's over. Past periods help Pulse learn your cycle faster.</p>
     <form data-form="period" class="fform"><label>Started<input name="start" type="date" value="${new Date().toISOString().slice(0, 10)}" required></label><label>Ended<input name="end" type="date"></label>
@@ -80,7 +84,7 @@ export function sheet(kind, ctx) {
   if (kind === "labs") return `<div class="sh-h"><b>Add lab results</b><button class="back" data-sheetclose>Cancel</button></div>
     <p>Type the numbers from your report (US units). Leave anything you don't have blank.</p>
     <form data-form="labs" class="fform"><label class="full">Date drawn<input name="date" type="date" value="${new Date().toISOString().slice(0, 10)}" required></label>
-      ${ANALYTES.map((a) => `<label>${a.n} <small>${a.u}</small><input name="${a.k}" inputmode="decimal"></label>`).join("")}
+      ${MANUAL_ANALYTES.map((a) => `<label>${a.n} <small>${a.u}</small><input name="${a.k}" inputmode="decimal"></label>`).join("")}
       <button class="cta full" type="submit">Save panel</button></form>`;
   return "";
 }

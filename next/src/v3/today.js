@@ -1,12 +1,12 @@
 // Today: one hero (activity, whose drill-down holds the day's timeline and workouts), the questions Pulse
 // has (only when something triggered them), and the latest reading of every sensor. Charts live in the
 // drill-downs.
-import { tempC } from "../core/units.js?v=20260924233355";
-import { median } from "./stats.js?v=20260924233355";
-import { M, paceFrac } from "./drill.js?v=20260924233355";
-import { workoutPrompts } from "./daymon.js?v=20260924233355";
-import { cycleOn, cyclePromptCard, cycleTile } from "./cycleui.js?v=20260924233355";
-import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260924233355";
+import { tempC } from "../core/units.js?v=20260925073227";
+import { median } from "./stats.js?v=20260925073227";
+import { M, paceFrac } from "./drill.js?v=20260925073227";
+import { workoutPrompts } from "./daymon.js?v=20260925073227";
+import { cycleOn, cyclePromptCard, cycleTile } from "./cycleui.js?v=20260925073227";
+import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260925073227";
 
 const usualDays = (k, min = 5) => { const v = D.hist.slice(-29, -1).map((h) => h[k]).filter((x) => x != null); return v.length >= min ? median(v) : null; };
 const agoMin = (t) => (Date.now() - new Date(t.replace(" ", "T")).getTime()) / 60e3;
@@ -64,7 +64,7 @@ export function today(ctx) {
   const d = D.latest.d;
   const head = header(`${FULLDAY[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`, "Live", syncChip(ctx));
   if (!D.T?.hasData && !D.hist.some((h) => h.hasNight || h.steps)) {
-    return `${head}${empty("No readings yet", ctx.band?.connected ? "Your band is connected. Readings appear after it records a little data; wear it and sync again in a while." : "Tap Connect above to pair your band. After it's been on your wrist for a bit, sync to see your day here.")}`;
+    return `${head}${cycleOn() ? `<div class="stack first">${cyclePromptCard()}</div>` : ""}${empty("No readings yet", ctx.band?.connected ? "Your band is connected. Readings appear after it records a little data; wear it and sync again in a while." : "Tap Connect above to pair your band. After it's been on your wrist for a bit, sync to see your day here.")}${cycleOn() ? `<div class="vitals" style="margin-top:16px">${cycleTile()}</div>` : ""}`;
   }
   return `${head}
     ${prompts()}
