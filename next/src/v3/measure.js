@@ -1,12 +1,14 @@
 // Measure: finger ECG rhythm checks and home cuff readings, each charted as recorded over time. A recording
 // opens in a full-screen view with the strip, HRV, breathing from the ECG and the average beat, all computed
 // on the phone by Pulse's analytics modules.
-import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20260924180231";
-import { advancedHRV } from "../analytics/hrv_advanced.js?v=20260924180231";
-import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20260924180231";
-import { toMs } from "../core/time.js?v=20260924180231";
-import { clamp, mean, median, ols, sd } from "./stats.js?v=20260924180231";
-import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20260924180231";
+import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20260924205306";
+import { advancedHRV } from "../analytics/hrv_advanced.js?v=20260924205306";
+import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20260924205306";
+import { toMs } from "../core/time.js?v=20260924205306";
+import { clamp, mean, median, ols, sd } from "./stats.js?v=20260924205306";
+import { bpCategory, bpSummary } from "./bp.js?v=20260924205306";
+import { labsBlock } from "./labsui.js?v=20260924205306";
+import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20260924205306";
 
 const SETTLE = 5;
 const AN = new Map();
@@ -282,22 +284,6 @@ function recList() {
 }
 
 // ---------- blood pressure ----------
-/** ACC/AHA 2017 home thresholds (Table 11): stage 1 from 130/80, stage 2 from 135/85. */
-export function bpCategory(sys, dia, single = false) {
-  if (single && (sys > 180 || dia > 120)) return ["Very high", "bad"];
-  if (sys >= 135 || dia >= 85) return ["Stage 2 range", "bad"];
-  if (sys >= 130 || dia >= 80) return ["Stage 1 range", "watch"];
-  if (sys >= 120) return ["Elevated", "watch"];
-  return ["Normal", "good"];
-}
-/** Average of the last 7 days (the first day is dropped when there are 4+ days, per the home protocol). */
-export function bpSummary(rows, now = Date.now()) {
-  const recent = rows.filter((r) => toMs(r.t) >= now - 7 * 864e5);
-  const days = [...new Set(recent.map((r) => r.t.slice(0, 10)))].sort();
-  const use = days.length >= 4 ? recent.filter((r) => r.t.slice(0, 10) !== days[0]) : recent;
-  if (use.length < 2) return null;
-  return { sys: mean(use.map((r) => r.sys)), dia: mean(use.map((r) => r.dia)), n: use.length, days: days.length };
-}
 function bpSection() {
   const all = D.bp, now = Date.now();
   if (!all.length) return `<div class="card rise" style="--i:6"><p class="note" style="margin:0 0 12px">No readings yet. A week of morning and evening readings gives a reliable home average (AHA), and it feeds your heart-risk estimate.</p><button class="cta" data-sheet="bp">Log a reading</button></div>`;
@@ -337,7 +323,7 @@ export function measure(ctx) {
   const ecgIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13h4l2-5 3 10 3-13 2 8h6"/></svg>`;
   const bpIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"/><path d="M12 13l3-3M12 6V4M9 3h6"/></svg>`;
   const bandName = ctx.band?.name ?? D.band?.name;
-  return `${header("ECG · blood pressure", "Measure", `<button class="hchip btn ${ctx.band?.connected ? "on" : ""}" data-syncchip><i></i><span>${ctx.band?.connected ? esc(bandName ?? "Connected") : "Connect"}</span></button>`)}
+  return `${header("ECG · blood pressure · labs", "Measure", `<button class="hchip btn ${ctx.band?.connected ? "on" : ""}" data-syncchip><i></i><span>${ctx.band?.connected ? esc(bandName ?? "Connected") : "Connect"}</span></button>`)}
     <div class="acts rise" style="--i:1">
       <div class="card act" style="--tint:${css("--heart")}"><span class="act-i">${ecgIcon}</span><b>Heart rhythm</b><span>30 s – 2 min, finger on the silver plate</span><button class="cta" data-record>Start</button></div>
       <div class="card act" style="--tint:${css("--spo2")}"><span class="act-i">${bpIcon}</span><b>Blood pressure</b><span>Log a reading from your home cuff</span><button class="cta" data-sheet="bp">Log</button></div>
@@ -346,5 +332,7 @@ export function measure(ctx) {
     ${D.ecg.length ? `<div class="sec rise" style="--i:3"><h2>Rhythm checks over time</h2><span class="lbl">${D.ecg.length} recording${D.ecg.length > 1 ? "s" : ""}</span></div>${ecgHistory()}<div class="sec rise" style="--i:4"><h2>Recordings</h2><span class="lbl">tap to open</span></div>${recList()}` : `<div class="sec rise" style="--i:3"><h2>Rhythm checks</h2></div>${empty("No recordings yet", "A 30-second check shows your rhythm, heart rate and HRV. Morning checks, seated and before coffee, are the most comparable over time.", 3)}`}
     <div class="sec rise" style="--i:5"><h2>Blood pressure over time</h2><span class="lbl">home cuff</span></div>
     ${bpSection()}
+    ${labsBlock(ctx)}
     <p class="note foot">A screening tool, not a diagnosis. Everything is analysed and stored on this phone.</p>`;
 }
+export { bpCategory, bpSummary };

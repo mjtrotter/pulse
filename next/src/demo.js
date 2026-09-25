@@ -1,9 +1,9 @@
 // 30 days of synthetic data for ?demo (separate database). Deterministic, and shaped like a real
 // 58-year-old wearer: a regular-ish sleeper with one late night, a mild illness 10-12 days ago,
 // evening walks and two strength sessions a week.
-import * as db from "./core/db.js?v=20260924180231";
-import { ecgSummary, ECG_FS } from "./analytics/ecg.js?v=20260924180231";
-import { stamp } from "./core/time.js?v=20260924180231";
+import * as db from "./core/db.js?v=20260924205306";
+import { ecgSummary, ECG_FS } from "./analytics/ecg.js?v=20260924205306";
+import { stamp } from "./core/time.js?v=20260924205306";
 
 const BAND = "DEMO";
 

@@ -1,13 +1,13 @@
 // Shared UI state, formatting, SVG helpers and the components every tab uses (header, gauge, minis,
 // montage, tiles, scrubbable charts). Screens are HTML strings; every piece of user-entered text goes
 // through esc().
-import { isUS, tempUnit } from "../core/units.js?v=20260924180231";
-import { clamp, median } from "./stats.js?v=20260924180231";
+import { isUS, tempUnit } from "../core/units.js?v=20260924205306";
+import { clamp, median } from "./stats.js?v=20260924205306";
 
 /** UI state that survives re-renders. */
 export const st = {
   tab: "today", sel: null, view: "now", agg: "90", split: false, showTags: true, hrvTab: "time", ecgStart: 0, horizon: "10",
-  ecgMetric: "rmssd", bpAgg: "30", allRecs: false, draft: new Set(), open: new Set(), whatIf: { sbp: null, tc: null }, recOpen: null,
+  ecgMetric: "rmssd", bpAgg: "30", tagg: "90", allRecs: false, draft: new Set(), open: new Set(), whatIf: { sbp: null, tc: null }, recOpen: null,
 };
 /** The derived data for the current render (filled by app.js before each render). */
 export const D = {};
@@ -118,7 +118,7 @@ export function montage(rows, axis, lblL, lblR) {
 }
 export function tile(key, m, label, value, unit, delta, viz, i) {
   return `<div class="card tile tap rise" style="--i:${i};--tint:${css(m.color)}" data-open="${key}"><div class="t-h"><span class="t-l"><i></i>${label}</span>${q(m.q)}</div>
-    <div class="tv">${value}<small>${unit}</small></div><div class="td">${delta}</div>${viz}</div>`;
+    <div class="t-body"><div class="t-main"><div class="tv">${value}<small>${unit}</small></div><div class="td">${delta}</div></div><div class="t-viz">${viz}</div></div></div>`;
 }
 export const empty = (title, body, i = 2) => `<div class="card empty rise" style="--i:${i}"><b>${title}</b><p>${body}</p></div>`;
 export const buildingLine = (have, need, what = "nights") => `<span class="muted">building your usual · ${Math.min(have, need)} of ${need} ${what}</span>`;

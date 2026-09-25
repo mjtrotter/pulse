@@ -1,8 +1,8 @@
 // Today: the day so far. Activity gauge, heart now and last night's recovery, the day's timeline, activity
 // tiles, and workouts detected from heart rate (with a prompt when one can't be classified from steps).
-import { mean, median } from "./stats.js?v=20260924180231";
-import { M, paceFrac } from "./drill.js?v=20260924180231";
-import { ampm, cap1, css, D, empty, esc, FULLDAY, glow, glowDef, gauge, header, hr12, MON, mini, montage, relMin, ringSvg, S, sc, short, smoothRuns, st, stateOf, syncChip, tile, uid, DAYS } from "./kit.js?v=20260924180231";
+import { mean, median } from "./stats.js?v=20260924205306";
+import { M, paceFrac } from "./drill.js?v=20260924205306";
+import { ampm, cap1, css, D, empty, esc, FULLDAY, glow, glowDef, gauge, header, hr12, MON, mini, montage, relMin, ringSvg, S, sc, short, smoothRuns, st, stateOf, syncChip, tile, uid, DAYS } from "./kit.js?v=20260924205306";
 
 const DAYX = sc(6 * 60, 22 * 60, 0, 300);
 const WTYPES = ["Strength", "Yard or housework", "Cycling", "Other"];
@@ -12,7 +12,7 @@ function headline() {
   const T = D.T, frac = paceFrac(), usualDay = usualDays("steps", 3), usualNow = frac != null && usualDay != null ? usualDay * frac : null;
   const ahead = usualNow != null ? T.steps >= usualNow : null;
   const h1 = T.steps >= D.goal ? "Step goal done." : ahead == null ? (T.steps ? `${(D.goal - T.steps).toLocaleString()} steps to your goal.` : "Nothing recorded yet today.") : ahead ? "A strong day so far." : "A slower day than usual so far.";
-  const wk = D.week >= 150 ? `${D.week} active minutes over the last 7 days, past the 150 guideline` : `${D.week} of 150 active minutes over the last 7 days`;
+  const wk = D.week >= 150 ? `${D.week} brisk minutes over the last 7 days, past the 150 guideline` : `${D.week} of 150 brisk minutes over the last 7 days`;
   const vs = usualNow != null ? `, against about ${usualNow < 1000 ? Math.round(usualNow) : (Math.round(usualNow / 100) * 100).toLocaleString()} on a usual day` : "";
   const asOf = T.dataEnd != null && T.now - T.dataEnd > 20 ? `as of ${ampm(T.dataEnd)} (last sync)` : `by ${ampm(T.now)}`;
   return [h1, `${T.steps.toLocaleString()} steps ${asOf}${vs}. ${wk}.`];
@@ -59,7 +59,7 @@ function dayMontage() {
   const bins = []; for (let k = 0; k < T.n; k += 10) bins.push([T.wake + k, T.stepsMin.slice(k, k + 10).reduce((a, b) => a + b, 0)]);
   const bmax = Math.max(...bins.map((b) => b[1]), 1);
   rows.push(["Steps", "steps", futureMask(H) + `<g class="fadein" style="--i:2">${bins.map(([t, v]) => (v ? `<rect x="${x(t).toFixed(1)}" y="${(H - 2 - (v / bmax) * (H - 4)).toFixed(1)}" width="${Math.max(1, x(t + 10) - x(t) - 0.6).toFixed(1)}" height="${((v / bmax) * (H - 4)).toFixed(1)}" rx="1" fill="${css("--steps")}"/>` : "")).join("")}</g>`, `${T.steps.toLocaleString()}<small>${Math.round((100 * T.steps) / D.goal)}% of goal</small>`]);
-  rows.push(["Active", "mvpa", futureMask(H) + `<g class="fadein" style="--i:3">${T.brisk.map((b, k) => (b ? `<rect x="${x(T.wake + k).toFixed(1)}" y="8" width="1.2" height="14" fill="${css("--act")}"/>` : "")).join("")}</g>`, `${T.mvpa} min<small>${D.week} in 7 days</small>`]);
+  rows.push(["Active", "mvpa", futureMask(H) + `<g class="fadein" style="--i:3">${T.brisk.map((b, k) => (b ? `<rect x="${x(T.wake + k).toFixed(1)}" y="6" width="1.2" height="18" fill="${css("--act")}"/>` : T.lightMin[k] ? `<rect x="${x(T.wake + k).toFixed(1)}" y="12" width="1.2" height="12" fill="${css("--act2")}" opacity=".8"/>` : "")).join("")}</g>`, `${T.mvpa} brisk<small>${T.light} light</small>`]);
   const cells = []; for (let hh = 7; hh < 22; hh++) { const done = hh < T.nowH, on = done && T.hourly[hh] >= 250, curH = hh === T.nowH; cells.push(`<rect x="${(x(hh * 60) + 1).toFixed(1)}" y="7" width="${(x(hh * 60 + 60) - x(hh * 60) - 2).toFixed(1)}" height="16" rx="4" fill="${on ? css("--breath") : "none"}" stroke="${on ? "none" : css("--ink3")}" stroke-opacity="${done || curH ? 0.55 : 0.2}" ${curH ? `stroke-dasharray="2 2"` : ""}/>`); }
   rows.push(["Moving", "moveH", `<g class="fadein" style="--i:4">${cells.join("")}</g>`, `${T.moveH} of ${Math.max(0, T.nowH - 7)} h<small>250+ steps</small>`]);
   return montage(rows, axis(), `${ampm(T.wake)} – now`, T.dataEnd != null && T.now - T.dataEnd > 20 ? `synced to ${ampm(T.dataEnd)}` : "tap a row");
@@ -82,6 +82,12 @@ function vMvpa() {
   const max = Math.max(45, ...days.map((d) => d[1] ?? 0)), bw = W0 / 7, y = sc(0, max, H - 12, 4);
   return S(W0, H, `<line x1="0" x2="${W0}" y1="${y(150 / 7)}" y2="${y(150 / 7)}" stroke="${css("--ink3")}" stroke-dasharray="3 3" opacity=".7"/>` + days.map(([d, v], i) => `${v != null ? `<rect x="${(i * bw + 3).toFixed(1)}" y="${y(v).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${Math.max(1.5, y(0) - y(v)).toFixed(1)}" rx="3" fill="${css("--act")}" opacity="${i === 6 ? 1 : 0.5}"/>` : ""}<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 1}" text-anchor="middle" class="axis" style="font-size:8.5px">${DAYS[d.getDay()][0]}</text>`).join(""));
 }
+function vLight() {
+  const W0 = 150, H = 50, days = [...D.hist.slice(-7, -1).map((h) => [h.d, h.lightAct]), [D.latest.d, D.T.light]];
+  while (days.length < 7) days.unshift([new Date(days[0][0].getTime() - 864e5), null]);
+  const max = Math.max(30, ...days.map((d) => d[1] ?? 0)), bw = W0 / 7, y = sc(0, max, H - 12, 4);
+  return S(W0, H, days.map(([d, v], i) => `${v != null ? `<rect x="${(i * bw + 3).toFixed(1)}" y="${y(v).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${Math.max(1.5, y(0) - y(v)).toFixed(1)}" rx="3" fill="${css("--act2")}" opacity="${i === 6 ? 1 : 0.5}"/>` : ""}<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 1}" text-anchor="middle" class="axis" style="font-size:8.5px">${DAYS[d.getDay()][0]}</text>`).join(""));
+}
 function vMoveH() {
   const T = D.T, W0 = 150, H = 50, cw = W0 / 15, cells = [];
   for (let hh = 7; hh < 22; hh++) { const i = hh - 7, done = hh < T.nowH, on = done && T.hourly[hh] >= 250, curH = hh === T.nowH; cells.push(`<rect x="${(i * cw + 1).toFixed(1)}" y="${i % 2 ? 22 : 12}" width="${(cw - 2).toFixed(1)}" height="16" rx="3" fill="${on ? css("--breath") : "none"}" stroke="${on ? "none" : css("--ink3")}" stroke-opacity="${done || curH ? 0.6 : 0.2}" ${curH ? `stroke-dasharray="2 2"` : ""}/>`); }
@@ -92,8 +98,9 @@ function tiles() {
   return `<div class="tiles">
     ${tile("hrday", M.hrday, "Heart rate", T.hrNow ? Math.round(T.hrNow.bpm) : "—", "bpm latest", T.dayHr != null ? `daytime avg ${Math.round(T.dayHr)}${u != null ? ` · usual ${Math.round(u)}` : ""}` : "daytime average after more readings", vHrDay(), 5)}
     ${tile("steps", M.steps, "Steps", T.steps.toLocaleString(), "", su != null ? `${T.steps >= su ? `<span class="up">ahead</span>` : `<span class="warn">behind</span>`} of usual by now` : `goal ${D.goal.toLocaleString()}`, vSteps(), 6)}
-    ${tile("mvpa", M.mvpa, "Active minutes", T.mvpa, "min", D.week >= 150 ? `<span class="up">${D.week}</span> in 7 days · goal 150` : `${D.week} of 150 in 7 days`, vMvpa(), 7)}
-    ${tile("moveH", M.moveH, "Moving hours", T.moveH, `of ${Math.max(0, T.nowH - 7)}`, T.stillNow >= 60 ? `<span class="warn">still for ${short(T.stillNow)}</span>` : `longest still ${short(T.longestStill)}`, vMoveH(), 8)}
+    ${tile("mvpa", M.mvpa, "Brisk minutes", T.mvpa, "min", D.week >= 150 ? `<span class="up">${D.week}</span> in 7 days · goal 150` : `${D.week} of 150 in 7 days`, vMvpa(), 7)}
+    ${tile("light", M.light, "Light activity", T.light, "min", `walking at 60–99 steps/min${usualDays("lightAct") != null ? ` · usual ${Math.round(usualDays("lightAct"))} a day` : ""}`, vLight(), 8)}
+    ${tile("moveH", M.moveH, "Moving hours", T.moveH, `of ${Math.max(0, T.nowH - 7)}`, T.stillNow >= 60 ? `<span class="warn">still for ${short(T.stillNow)}</span>` : `longest still ${short(T.longestStill)}`, vMoveH(), 9)}
   </div>`;
 }
 function workouts() {

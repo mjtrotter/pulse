@@ -1,25 +1,28 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260924180231";
-import * as db from "./core/db.js?v=20260924180231";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924180231";
-import { stamp } from "./core/time.js?v=20260924180231";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924180231";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924180231";
-import { scoreDays } from "./analytics/scores.js?v=20260924180231";
-import { buildModel } from "./v3/model.js?v=20260924180231";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924180231";
-import { drill, M } from "./v3/drill.js?v=20260924180231";
-import { today } from "./v3/today.js?v=20260924180231";
-import { night } from "./v3/night.js?v=20260924180231";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924180231";
-import { onboarding, preventCard, profile, sheet } from "./v3/profile.js?v=20260924180231";
+import { Band } from "./core/ble.js?v=20260924205306";
+import * as db from "./core/db.js?v=20260924205306";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924205306";
+import { stamp } from "./core/time.js?v=20260924205306";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924205306";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924205306";
+import { scoreDays } from "./analytics/scores.js?v=20260924205306";
+import { buildModel } from "./v3/model.js?v=20260924205306";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924205306";
+import { drill, M } from "./v3/drill.js?v=20260924205306";
+import { today } from "./v3/today.js?v=20260924205306";
+import { night } from "./v3/night.js?v=20260924205306";
+import { trends } from "./v3/trends.js?v=20260924205306";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924205306";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924205306";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924205306";
+import { advSheet } from "./v3/advanced.js?v=20260924205306";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
 const PREVIEW = location.pathname.includes("/next/");
 const DB = DEMO ? "jcv8-demo3" : PREVIEW ? "jcv8-next" : db.DB_NAME;
-const TABS = { today: "Today", night: "Night", measure: "Measure", profile: "Profile" };
+const TABS = { today: "Today", night: "Night", trends: "Trends", measure: "Measure", profile: "Profile" };
 const $ = (s, r = document) => r.querySelector(s);
 
 export const ctx = {
@@ -100,7 +103,7 @@ const invalidate = () => { model = null; };
 async function prepare() {
   if (!model) model = await buildModel(ctx.store, ctx.profile);
   const m = model;
-  Object.assign(D, { profile: ctx.profile, hist: m.hist, L: m.L, latest: m.hist[m.L], typical: m.typical, T: m.today, goal: m.goal, band: m.band, ecg: m.ecg, bp: m.bp, labs: m.labs, bandBp: m.bandBp ?? [] });
+  Object.assign(D, { profile: ctx.profile, hist: m.hist, L: m.L, latest: m.hist[m.L], typical: m.typical, T: m.today, goal: m.goal, band: m.band, ecg: m.ecg, bp: m.bp, labs: m.labs, bandBp: m.bandBp ?? [], advData: m.adv });
   D.nights = m.hist.map((h, i) => (h.hasNight ? i : -1)).filter((i) => i >= 0);
   D.week = m.hist.slice(-7, -1).reduce((a, h) => a + (h.mvpa ?? 0), 0) + (m.today?.mvpa ?? 0);
   if (nightParam != null) { st.sel = Math.max(0, m.L - nightParam); nightParam = null; }
@@ -126,7 +129,7 @@ async function render(anim = true) {
   const app = $("#app");
   app.classList.toggle("still", !anim);
   let html = "";
-  try { html = st.tab === "today" ? today(ctx) : st.tab === "night" ? night(ctx) : st.tab === "measure" ? measure(ctx) : profile(ctx); }
+  try { html = st.tab === "today" ? today(ctx) : st.tab === "night" ? night(ctx) : st.tab === "trends" ? trends(ctx) : st.tab === "measure" ? measure(ctx) : profile(ctx); }
   catch (e) { console.error(e); ctx.log(`Screen error: ${e.message}`, true); html = `<div class="card"><b>Something went wrong</b><p class="note">${esc(e.message)}</p></div>`; }
   app.innerHTML = html;
   $("#tabbar").hidden = false;
@@ -199,7 +202,7 @@ function showSheet(kind) {
   closeSheet();
   const s = document.createElement("div");
   s.className = "sheet-wrap";
-  s.innerHTML = `<div class="sheet-bg" data-sheetclose></div><div class="sheet" role="dialog" aria-modal="true">${sheet(kind, ctx)}</div>`;
+  s.innerHTML = `<div class="sheet-bg" data-sheetclose></div><div class="sheet" role="dialog" aria-modal="true">${kind === "labreview" ? labReviewSheet(st.labDraft ?? {}) : kind.startsWith("adv:") ? advSheet(kind.slice(4)) : sheet(kind, ctx)}</div>`;
   document.body.append(s);
   requestAnimationFrame(() => s.classList.add("on"));
 }
@@ -274,6 +277,21 @@ async function copyLive() {
   if (!ctx.profile.onboarded) st.obStep = 1;
   await render();
 }
+/** Lab PDF → parsed on this phone (pdf.js, loaded only now) → review sheet. */
+function pickLabPdf() {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/pdf,.pdf";
+  inp.onchange = async () => {
+    const file = inp.files[0]; if (!file) return;
+    toast("Reading the report…", 15000);
+    try {
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924205306");
+      st.labDraft = await importLabPdf(await file.arrayBuffer());
+      document.querySelector(".toast")?.remove();
+      showSheet("labreview");
+    } catch (e) { ctx.log(`Lab PDF: ${e.message}`, true); toast(`Couldn't read that PDF: ${e.message}. You can type the values in instead.`, 6000); }
+  };
+  inp.click();
+}
 function readProfileForm(f, base) {
   const us = isUS(), age = parseInt(f.age.value, 10);
   const height = us ? ftInToCm(parseInt(f.ft?.value, 10) || 0, parseInt(f.in?.value, 10) || 0) : parseFloat(f.cm?.value);
@@ -305,7 +323,7 @@ document.addEventListener("click", async (e) => {
   }
   const o2 = on("[data-open2]");
   if (modal && o2 && M[o2.dataset.open2]) { openKey = o2.dataset.open2; st.view = "now"; modal.style.setProperty("--mcolor", css(M[openKey].color)); redrawModal(); modal.scrollTop = 0; return; }
-  if (on("[data-close]")) { closeModal(); if (on("[data-goto]")) setTimeout(() => $("#prompt")?.scrollIntoView({ behavior: "smooth", block: "center" }), 480); return; }
+  if (on("[data-close]")) { closeModal(); if (on("[data-goto]")) setTimeout(() => $("#prompt")?.scrollIntoView({ behavior: "smooth", block: "center" }), 480); if (on("[data-golabs]")) setTimeout(async () => { await setTab("measure"); $("#labs")?.scrollIntoView({ behavior: "smooth" }); }, 480); return; }
   const ht = on("[data-hrvtab]"); if (ht) { st.hrvTab = ht.dataset.hrvtab; $("#hrvcard").innerHTML = hrvPanel(); return; }
   const j = on("[data-jump]"); if (j) { const E = current(); const r = E.iv.find((z) => !z.ok); if (r) st.ecgStart = Math.max(0, Math.min(E.dur - 8, r.t - 3)); $("#ecgcard").innerHTML = ecgTrace() + ecgOverview(); return; }
   const rl = on("[data-reclen]"); if (rl && !st.recRun) { st.recLen = +rl.dataset.reclen; redrawModal(); return; }
@@ -348,10 +366,14 @@ document.addEventListener("click", async (e) => {
   if (on("[data-export]")) { exportData(); return; }
   if (on("[data-import]")) { importData(); return; }
   if (on("[data-rebuild]")) { await rebuild(true); toast("Rebuilt"); await stay(); return; }
+  if (on("[data-labpdf]")) { pickLabPdf(); return; }
+  const ai = on("[data-advinfo]"); if (ai) { showSheet(`adv:${ai.dataset.advinfo}`); return; }
+  if (on("[data-golabs2]")) { await setTab("measure"); setTimeout(() => $("#labs")?.scrollIntoView({ behavior: "smooth" }), 200); return; }
   const dl = on("[data-dellab]"); if (dl) { const labs = ((await db.getSetting(ctx.store, "labs")) ?? []).filter((x) => x.date !== dl.dataset.dellab); await db.setSetting(ctx.store, "labs", labs); invalidate(); await stay(); return; }
   const ex = on("[data-expand]"); if (ex) { const id = ex.dataset.expand; st.open.has(id) ? st.open.delete(id) : st.open.add(id); await stay(); return; }
   const sh = on("[data-sheet]"); if (sh) { showSheet(sh.dataset.sheet); return; }
-  const o = on("[data-open]"); if (o && M[o.dataset.open]) openModal(o, "drill", o.dataset.open);
+  const tg = on("[data-tagg]"); if (tg) { st.tagg = tg.dataset.tagg; await stay(); return; }
+  const o = on("[data-open]"); if (o && M[o.dataset.open]) { openModal(o, "drill", o.dataset.open); if (o.dataset.openview) { st.view = o.dataset.openview; redrawModal(); } }
 });
 
 document.addEventListener("submit", async (e) => {
@@ -374,6 +396,18 @@ document.addEventListener("submit", async (e) => {
     const a = { ...(ctx.profile.stopbang ?? {}) };
     for (const k of ["snore", "tired", "observed", "pressure", "neck"]) { const r = f.querySelector(`input[name=${k}]:checked`); if (r) a[k] = r.value === "1"; }
     await ctx.setProfile({ ...ctx.profile, stopbang: a }); closeSheet(); await stay(); return;
+  }
+  if (kind === "labreview") {
+    const v = {}, meta = {}, dr = st.labDraft ?? {};
+    for (const [k0, x] of Object.entries(dr.values ?? {})) {
+      const k = normKey(k0), use = f.querySelector(`[name="use_${k}"]`), val = parseFloat(f.querySelector(`[name="v_${k}"]`)?.value);
+      if (use?.checked && Number.isFinite(val)) { v[k] = val; meta[k] = { unit: x.unit ?? null, flag: x.flag ?? null, ref: x.ref ?? null }; }
+    }
+    if (!Object.keys(v).length) { toast("Nothing selected to save."); return; }
+    const labs = ((await db.getSetting(ctx.store, "labs")) ?? []).filter((x) => x.date !== f.date.value);
+    labs.push({ date: f.date.value, v, meta, source: "pdf", lab: dr.lab ?? null });
+    await db.setSetting(ctx.store, "labs", labs.sort((x, y) => (x.date < y.date ? -1 : 1)));
+    st.labDraft = null; closeSheet(); toast(`Saved ${Object.keys(v).length} lab values`); invalidate(); await stay(); return;
   }
   if (kind === "labs") {
     const v = {};
@@ -447,8 +481,12 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260924180231");
+    const { seedDemo } = await import("./demo.js?v=20260924205306");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
+    if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
+      { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },
+      { date: "2026-05-12", source: "demo", v: { tc: 226, ldl: 153, hdl: 42, tg: 166, glucose: 100, insulin: 10.4, a1c: 5.5, hscrp: 1.1, egfr: 85, apob: 111, alt: 28, tsh: 2.3, vitd: 31 } },
+      { date: "2026-09-03", source: "demo", v: { tc: 218, ldl: 148, hdl: 44, tg: 131, glucose: 97, insulin: 8.9, a1c: 5.4, hscrp: 0.8, egfr: 86, apob: 104, alt: 25, tsh: 2.0, vitd: 38 } }]);
   }
   ctx.profile = (await db.getSetting(ctx.store, "profile")) ?? {};
   if (!ctx.profile.onboarded && ctx.profile.age && ctx.profile.sex) await ctx.setProfile({ ...ctx.profile, onboarded: true });

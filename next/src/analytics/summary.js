@@ -3,14 +3,16 @@
 //   day:   activity and heart-rate load over D (00:00-24:00)
 //   scores: Sleep / Recovery / Activity (analytics/scores.js), filled by scoreDays()
 // Trends and scores read these, never months of raw 5-s heart rate.
-import { hrmaxTanaka, zonesAndLoad } from "./metrics.js?v=20260924180231";
-import { detectWorkouts } from "./workouts.js?v=20260924180231";
-import { nightSleep } from "./sleep.js?v=20260924180231";
-import { sleepingBandHRV, sleepingHR, sleepingSpO2, sleepingTemp } from "./overnight.js?v=20260924180231";
-import { nightPPI, nightRespiration } from "./ppi.js?v=20260924180231";
-import { median } from "./baseline.js?v=20260924180231";
+import { hrmaxTanaka, zonesAndLoad } from "./metrics.js?v=20260924205306";
+import { detectWorkouts } from "./workouts.js?v=20260924205306";
+import { nightSleep } from "./sleep.js?v=20260924205306";
+import { sleepingBandHRV, sleepingHR, sleepingSpO2, sleepingTemp } from "./overnight.js?v=20260924205306";
+import { nightPPI, nightRespiration } from "./ppi.js?v=20260924205306";
+import { median } from "./baseline.js?v=20260924205306";
+import { cvhr } from "./watch.js?v=20260924205306";
+import { cardiacCost, hrByStage } from "./fitness.js?v=20260924205306";
 
-export const SUMMARY_VERSION = 5; // bump to force a rebuild when the definitions change
+export const SUMMARY_VERSION = 6; // bump to force a rebuild when the definitions change
 
 const prevDate = (date) => {
   const d = new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) - 1));
@@ -48,6 +50,8 @@ export function computeDay(data, date, profile = {}, ctx = {}) {
       resp: nightRespiration(data.ppi ?? [], sl.onset, sl.wake),
       spo2: sleepingSpO2(data.spo2, sl.onset, sl.wake),
       temp: sleepingTemp(data.temp, sl.onset, sl.wake),
+      cvhr: compactCvhr(cvhr(data.hr, sl.onset, sl.wake, sl.stages)),
+      stage_hr: stageHr(data.hr, sl.stages),
     };
   } else {
     // No band sleep record: fall back to 00:00-06:00 so resting HR and temperature still trend.
@@ -86,6 +90,8 @@ export function computeDay(data, date, profile = {}, ctx = {}) {
       zone_minutes: load?.zone_minutes ?? null, trimp: load?.trimp ?? null,
       workouts: bouts,
       activity: act.length ? activityStats(act) : null,
+      cardiac_cost: compactCost(rest != null && act.length ? cardiacCost(data.hr.filter((r) => r.t >= d0 && r.t <= d1), minuteSteps(act), date, rest) : null),
+      temp_hourly: hourlyValues(data.temp.filter((r) => r.t >= d0 && r.t <= d1 && r.c > 25 && r.c < 42).map((r) => [r.t, r.c])),
     };
   }
   return out;
@@ -109,6 +115,26 @@ export function hourlyMeans(samples) {
   const acc = Array.from({ length: 24 }, () => [0, 0, 999, 0]);
   for (const [t, v] of samples) { const e = acc[+t.slice(11, 13)]; e[0] += v; e[1]++; e[2] = Math.min(e[2], v); e[3] = Math.max(e[3], v); }
   return acc.map(([sum, n, lo, hi]) => (n ? [Math.round((sum / n) * 10) / 10, lo, hi] : null));
+}
+
+/** Experimental cyclic-HR (CVHR) index for the night, without the per-event list. */
+function compactCvhr(c) { return c && c.index != null ? { index: Math.round(c.index * 10) / 10, hours: Math.round(c.hours * 10) / 10, events: c.events.length } : null; }
+function compactCost(c) { return c ? { bpmPer100spm: Math.round(c.bpmPer100spm * 10) / 10, walkingHr: Math.round(c.walkingHr), cadence: Math.round(c.cadence), minutes: c.minutes } : null; }
+/** Mean heart rate in each sleep stage (per-minute alignment of 5-s HR with the band's stage codes). */
+function stageHr(hrRows, stages) {
+  if (!stages?.length) return null;
+  const st = new Map(stages.map(([t, c]) => [t.slice(0, 16), c])), acc = new Map();
+  for (const r of hrRows) { const k = r.t.slice(0, 16); if (!st.has(k)) continue; const e = acc.get(k) ?? [0, 0]; e[0] += r.bpm; e[1]++; acc.set(k, e); }
+  const hr = new Map([...acc].map(([k, [s, n]]) => [k, s / n]));
+  const out = hrByStage(st, hr);
+  return out && (out.deep ?? out.light ?? out.rem) != null ? { deep: out.deep, light: out.light, rem: out.rem, awake: out.awake } : null;
+}
+
+/** Mean of [t, value] samples for each clock hour (null where none). */
+export function hourlyValues(samples) {
+  const acc = Array.from({ length: 24 }, () => [0, 0]);
+  for (const [t, v] of samples) { const e = acc[+t.slice(11, 13)]; e[0] += v; e[1]++; }
+  return acc.map(([sum, n]) => (n ? Math.round((sum / n) * 100) / 100 : null));
 }
 
 /** Minutes of the day with at least one HR sample (the band only reports HR while worn). */
@@ -153,6 +179,7 @@ export function activityStats(act) {
   for (const [m, v] of mins) hourly[Math.floor(m / 60)] += v;
   return {
     mvpa_min: vals.filter((v) => v >= 100).length,
+    light_min: vals.filter((v) => v >= 60 && v < 100).length, // light walking (below the 100 steps/min brisk threshold)
     vigorous_min: vals.filter((v) => v >= 130).length,
     peak1: sorted[0] ?? 0,
     peak30: sorted.length ? sorted.slice(0, 30).reduce((s, v) => s + v, 0) / 30 : 0,

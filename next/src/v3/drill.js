@@ -1,9 +1,10 @@
 // The metric catalog and the full-screen drill-down every tile opens: headline value, bands (population,
 // your usual, what your sleep predicts), a plain-language read, then four views: the night/day itself,
 // Over time, Your range and What affects it.
-import { tempC } from "../core/units.js?v=20260924180231";
-import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924180231";
-import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924180231";
+import { tempC } from "../core/units.js?v=20260924205306";
+import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924205306";
+import { labContext } from "./labsui.js?v=20260924205306";
+import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924205306";
 
 const ALL = ["sleep", "alcohol", "caffeine", "stress", "workout"];
 const decade = (age) => Math.min(70, Math.max(20, Math.floor((age ?? 40) / 10) * 10));
@@ -28,9 +29,14 @@ export const M = {
   spo2: { lc: "oxygen level", title: "Oxygen asleep", unit: "%", color: "--spo2", get: (h) => h.spo2, f: (v) => v.toFixed(0), fa: (v) => v.toFixed(1), pop: () => [95, 100], popLbl: () => "Healthy adults", better: 1, drivers: ["alcohol", "sleep"], q: 3 },
   temp: { lc: "skin temperature", title: "Skin temperature", unit: "", color: "--temp", get: (h) => (h.tdev == null ? null : tDelta(h.tdev)), f: (v) => `${sign(v)}°`, pop: () => [tDelta(-0.5), tDelta(0.5)], popLbl: () => "Normal swing", better: -1, drivers: ["alcohol", "workout"], q: 4 },
   timing: { lc: "sleep midpoint", title: "Sleep timing", unit: "", color: "--sleep2", get: (h) => h.mid, f: (v) => clock(v), big: (v) => `${clock(v)}<small>${((v % 1440) + 1440) % 1440 >= 720 ? "PM" : "AM"}</small>`, fd: (v) => `${Math.round(v)} min`, noCv: true, better: 0, drivers: ["alcohol", "caffeine", "stress"], q: 4 },
+  sri: { lc: "sleep regularity", title: "Sleep regularity (SRI)", unit: "", color: "--sleep2", get: (h) => h.sri7, f: (v) => Math.round(v).toString(), better: 1, drivers: ["alcohol", "caffeine", "stress"], q: 3 },
+  dip: { lc: "night-time heart-rate dip", title: "Night-time heart-rate dip", unit: "%", color: "--heart", get: (h) => h.dipPct, f: (v) => v.toFixed(0), better: 1, drivers: ["alcohol", "workout", "sleep"], q: 2, xp: true },
+  cvhr: { lc: "cyclic heart-rate index", title: "Cyclic heart-rate pattern", unit: "/h", color: "--breath", get: (h) => h.cvhrIndex, f: (v) => v.toFixed(1), better: -1, drivers: ["alcohol", "sleep"], q: 1, xp: true },
+  ccost: { day: true, lc: "cardiac cost of walking", title: "Cardiac cost of walking", unit: "bpm", color: "--heart", get: (h) => h.ccost, today: () => D.latest?.ccost ?? null, frac: () => 1, f: (v) => v.toFixed(0), better: -1, drivers: ["sleep", "alcohol"], q: 2, xp: true },
   steps: { day: true, lc: "steps", title: "Steps", unit: "", color: "--steps", get: (h) => h.steps, today: () => D.T?.steps, frac: paceFrac, f: (v) => Math.round(v).toLocaleString(), pop: () => [D.goal, D.goal * 1.5], popLbl: () => "Daily goal", better: 1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
   hrday: { day: true, lc: "daytime heart rate", title: "Daytime heart rate", unit: "bpm", color: "--heart", get: (h) => h.dayHr, today: () => D.T?.dayHr, frac: () => 1, f: (v) => v.toFixed(0), pop: () => [60, 100], popLbl: () => "Adults at rest", better: -1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
-  mvpa: { day: true, lc: "active minutes", title: "Active minutes", unit: "min", color: "--act", get: (h) => h.mvpa, today: () => D.T?.mvpa, frac: paceFrac, f: (v) => Math.round(v).toString(), pop: () => [150 / 7, 300 / 7], popLbl: () => "Guideline pace", better: 1, drivers: ["sleep", "stress"], q: 4 },
+  mvpa: { day: true, lc: "brisk minutes", title: "Brisk minutes", unit: "min", color: "--act", get: (h) => h.mvpa, today: () => D.T?.mvpa, frac: paceFrac, f: (v) => Math.round(v).toString(), pop: () => [150 / 7, 300 / 7], popLbl: () => "Guideline pace", better: 1, drivers: ["sleep", "stress"], q: 4 },
+  light: { day: true, lc: "light activity", title: "Light activity", unit: "min", color: "--act2", get: (h) => h.lightAct, today: () => D.T?.light, frac: paceFrac, f: (v) => Math.round(v).toString(), better: 1, drivers: ["sleep", "stress"], q: 4 },
   moveH: { day: true, lc: "moving hours", title: "Moving hours", unit: "h", color: "--breath", get: (h) => h.moveH, today: () => D.T?.moveH, frac: () => clamp((D.T.nowH - 7) / 15, 0.05, 1), f: (v) => Math.round(v).toString(), fa: (v) => v.toFixed(1), better: 1, drivers: ["sleep", "stress"], q: 4 },
 };
 export const popOf = (m) => (typeof m.pop === "function" ? m.pop() : m.pop) ?? null;
@@ -75,6 +81,7 @@ function ctxText(key, B) {
   if (key === "steps") return `${T.steps.toLocaleString()} so far today, ${Math.round((100 * T.steps) / D.goal)}% of ${D.goal.toLocaleString()}.${you ? ` By ${ampm(T.now)} you usually have ${m.f(you[0])}–${m.f(you[1])}.` : ""}${B.rcur != null ? ` Yesterday: <b>${m.f(B.rcur)}</b>.` : ""} Adults ${(D.profile.age ?? 40) >= 60 ? "60+ get most of the benefit by ~7,000" : "under 60 get most of the benefit by ~8,000"} a day (Paluch 2022).`;
   if (key === "hrday") return `Averaging <b>${cur.toFixed(0)} bpm</b> while awake and not exercising${you ? `, ${cur >= you[0] && cur <= you[1] ? "inside" : cur > you[1] ? "above" : "below"} your usual ${m.f(you[0])}–${m.f(you[1])}` : ""}.${T.hrNow ? ` Latest reading: ${Math.round(T.hrNow.bpm)} bpm.` : ""}${T.hrHi ? ` Highest today ${Math.round(T.hrHi)}.` : ""}`;
   if (key === "mvpa") return `<b>${T.mvpa} active minutes</b> today and ${D.week} over the last 7 days, toward the 150 a week of moderate activity adults need (AHA, WHO). Heart-rate sessions count, so strength work isn't missed.`;
+  if (key === "light") return `<b>${T.light} minutes of light walking</b> today (60–99 steps a minute), plus ${T.mvpa} brisk. Any movement counts: light activity is linked with lower mortality even without brisk exercise (Ekelund 2019).`;
   if (key === "moveH") return `You moved (250+ steps) in <b>${T.moveH} of the ${Math.max(0, T.nowH - 7)} hours</b> since 7 AM. Longest still stretch today: ${short(T.longestStill)}. Short walking breaks during long sitting lower blood sugar and insulin after meals (Dunstan 2012).`;
   if (key === "spo2") return `Spot readings through the night${h.spo2N ? ` (${h.spo2N} of them, lowest ${h.spo2Min}%)` : ""}. These can show a low night but can't count breathing pauses; that needs a sleep study or a 1-second oximeter.${usualTxt}`;
   if (!you) return `${cap1(m.lc)} ${m.f(cur)}${m.unit ? ` ${m.unit}` : ""}.${usualTxt}`;
@@ -90,15 +97,16 @@ export function drill(key, backLabel) {
   const views = [["now", m.day ? "Today" : isLatest() ? "Last night" : "That night"], ["time", "Over time"], ["range", "Your range"], ["affects", "What affects it"]];
   const status = cur == null ? "" : e ? (cur >= e.lo && cur <= e.hi ? "within expected" : cur < e.lo ? "below expected" : "above expected") : you ? (cur >= you[0] && cur <= you[1] ? "within your usual" : cur < you[0] ? "below your usual" : "above your usual") : "building your usual";
   const ev = h ? eveOf(h) : null;
-  const meta = m.day ? `Today so far · ${ampm(T.now)}<br>${key === "steps" ? `${Math.round((100 * T.steps) / D.goal)}% of daily goal` : key === "mvpa" ? `${D.week} min over 7 days` : key === "hrday" ? (T.hrNow ? `latest ${Math.round(T.hrNow.bpm)} bpm` : "no reading yet") : `${Math.max(0, T.nowH - 7)} hours so far`}<br>${status}`
+  const meta = m.day ? `Today so far · ${ampm(T.now)}<br>${key === "steps" ? `${Math.round((100 * T.steps) / D.goal)}% of daily goal` : key === "mvpa" ? `${D.week} min over 7 days` : key === "light" ? `${T.mvpa} brisk as well` : key === "hrday" ? (T.hrNow ? `latest ${Math.round(T.hrNow.bpm)} bpm` : "no reading yet") : `${Math.max(0, T.nowH - 7)} hours so far`}<br>${status}`
     : `Night of ${MON[ev.getMonth()]} ${ev.getDate()} → ${h.d.getDate()}<br>${["hrv", "breath"].includes(key) && h.hrvOf ? `${h.hrvN} of ${h.hrvOf} recordings usable` : key === "spo2" && h.spo2N ? `${h.spo2N} readings` : h.hasSleep ? `${ampm(h.onset)} – ${ampm(h.wake)}` : "no sleep record"}<br>${status}`;
   const bandsHtml = key === "timing" || cur == null ? "" : `<div class="bands">${pop ? bandRow(popLbl(m), pop, "pop", cur, lo, hi, m) : ""}${you ? bandRow(m.day && B.frac < 1 ? `Usual by ${clock(T.now)}` : "Your usual", you, "you", cur, lo, hi, m) : ""}${e ? bandRow(isLatest() ? "Expected tonight" : "Expected", [e.lo, e.hi], "exp", cur, lo, hi, m) : ""}</div>`;
   return `<div class="aurora"><i class="a"></i><i class="b"></i><i class="c"></i></div><div class="inner">
     <div class="m-top"><button class="back" data-close>‹ ${backLabel}</button>${q(m.q)}</div>
-    <div class="lbl m-lbl">${m.title}${m.day ? " · today" : isLatest() ? "" : ` · ${nightName(h)}`}</div>
+    <div class="lbl m-lbl">${m.title}${m.xp ? ' <span class="xp">experimental</span>' : ""}${m.day ? " · today" : isLatest() ? "" : ` · ${nightName(h)}`}</div>
     <div class="m-hero"><div class="m-big">${cur == null ? "—" : m.big ? m.big(cur) : `${m.f(cur)}<small>${m.unit}</small>`}</div><div class="m-meta">${meta}</div></div>
     ${bandsHtml}
     <div class="ctx">${ctxText(key, B)}</div>
+    ${labContext(key)}
     <div class="seg">${views.map(([k, l]) => `<button data-view="${k}" class="${st.view === k ? "on" : ""}">${l}</button>`).join("")}</div>
     ${st.view === "time" || st.view === "range" ? `<div class="agg">${st.view === "time" ? `<button data-split class="ov ${st.split ? "on" : ""}">Weekday vs weekend</button><button data-showtags class="ov ${st.showTags ? "on" : ""}">Tags</button><span class="grow"></span>` : ""}${[["30", "30D"], ["90", "90D"], ["365", "1Y"]].map(([k, l]) => `<button data-agg="${k}" class="${st.agg === k ? "on" : ""}">${l}</button>`).join("")}</div>` : ""}
     <div class="card viz">${renderView(key, B)}</div>
@@ -118,7 +126,12 @@ function explain(key) {
     timing: `The midpoint is halfway between falling asleep and waking. Regular timing matters on its own: in about 60,000 UK Biobank adults, sleep regularity predicted mortality better than sleep length did (Windred 2024).`,
     steps: `Per-minute step counts from the band. Walking briskly is about 100+ steps a minute (Tudor-Locke 2018). "Usual by now" scales your usual day by how much of it you normally have done by this time.`,
     hrday: `The band's 5-second heart rate while you're awake, leaving out workouts and walking. A daytime average that creeps up over several days can come with poor sleep, illness or dehydration.`,
+    light: `Minutes of walking at 60–99 steps a minute: slower than brisk, but still movement. Light activity is linked with lower mortality on its own, with most of the benefit in the first hours a day (Ekelund 2019, BMJ meta-analysis of accelerometer studies). Brisk minutes are counted separately.`,
     mvpa: `A minute counts when you walk at 100+ steps a minute (Tudor-Locke 2018), or when your heart rate is at or above 40% of your heart-rate reserve during a detected session (${Math.round(T?.hrr40 ?? 0)}+ bpm for you; max heart rate from ${D.profile.betablocker ? "Brawner 2004 for beta-blockers" : "208 − 0.7 × age, Tanaka 2001"}).`,
+    sri: `Sleep Regularity Index (Phillips 2017): the chance you're in the same state (asleep or awake) at any two moments 24 hours apart, over the last 7 days, scaled to 0–100. In about 60,000 UK Biobank adults, regularity predicted mortality more strongly than sleep length (Windred 2024).`,
+    dip: `How much lower your heart rate runs asleep than awake: (awake average − sleeping average) ÷ awake average. Experimental: blood-pressure research defines "dipping" categories, but no validated cut-off exists for heart rate, so this is tracked against your own trend only.`,
+    cvhr: `Experimental. Counts repeating heart-rate surges during sleep (20–90 seconds apart, at least 6 bpm), a pattern that accompanies breathing pauses (Guilleminault 1984; Hayano 2011 validated it on ECG). This band reports heart rate about every 5 seconds from the wrist, which hasn't been validated for this, so treat it as a trend that might prompt a real sleep study.`,
+    ccost: `Experimental. Your average heart rate during steady walking (80–120 steps a minute) minus your resting heart rate, per 100 steps a minute. A cadence-only adaptation of the physiological cost index; lower means walking costs your heart less, and it tends to fall as fitness improves.`,
     moveH: `An hour counts as moving when it has 250+ steps, about two or three minutes of walking. Hours from 7 AM to 10 PM count.`,
   }[key];
   const nt = D.nt;
@@ -173,12 +186,23 @@ function viewNowDay(key) {
       + `<path d="${smoothRuns(pts, 0.1)}" fill="none" stroke="${col}" stroke-width="1.6"/>` + taxis(H);
     return scrubbable(sid, W0, H, body, sp.length ? sp : [[0, 0, ""]], `Drag across the day. Shaded: detected workouts.`) + `<div class="stat3"><div><b>${T.hrNow ? Math.round(T.hrNow.bpm) : "—"}</b><span>latest</span></div><div><b>${T.dayHr != null ? T.dayHr.toFixed(0) : "—"}</b><span>daytime average</span></div><div><b>${T.hrHi != null ? Math.round(T.hrHi) : "—"}</b><span>highest</span></div></div>`;
   }
-  if (key === "mvpa") {
-    const H = 70, body = fut(H) + T.brisk.map((b, k) => (b ? `<rect x="${x(T.wake + k).toFixed(1)}" y="10" width="1.3" height="36" fill="${col}"/>` : "")).join("") + T.stepsMin.map((v, k) => (!T.brisk[k] && v > 0 ? `<rect x="${x(T.wake + k).toFixed(1)}" y="${46 - Math.min(36, v / 3)}" width="1" height="${Math.min(36, v / 3)}" fill="${css("--ink3")}" opacity=".35"/>` : "")).join("") + taxis(H);
-    const sp = []; for (let k = 0; k < T.n; k += 2) sp.push([x(T.wake + k), 28, `${ampm(T.wake + k)} · ${T.stepsMin[k]} steps/min${T.brisk[k] ? " · <b>active</b>" : ""}`]);
-    const days = [...D.hist.slice(-7, -1).map((h) => [h.d, h.mvpa]), [D.latest.d, T.mvpa]], wmax = Math.max(50, ...days.map((d) => d[1] ?? 0)), bw = (W0 - 36) / 7, yb = sc(0, wmax, 118, 10);
-    const week = S(W0, 136, `<line x1="30" x2="${W0 - 6}" y1="${yb(150 / 7)}" y2="${yb(150 / 7)}" stroke="${css("--ink3")}" stroke-dasharray="3 3"/>` + days.map(([d, v], i) => (v == null ? `<text x="${(30 + i * bw + bw / 2).toFixed(1)}" y="112" text-anchor="middle" class="axis">—</text>` : `<rect x="${(30 + i * bw + 5).toFixed(1)}" y="${yb(v).toFixed(1)}" width="${(bw - 10).toFixed(1)}" height="${Math.max(2, yb(0) - yb(v)).toFixed(1)}" rx="4" fill="${col}" opacity="${i === 6 ? 1 : 0.5}"/><text x="${(30 + i * bw + bw / 2).toFixed(1)}" y="${yb(v) - 4}" text-anchor="middle" class="axis">${v}</text>`) + `<text x="${(30 + i * bw + bw / 2).toFixed(1)}" y="132" text-anchor="middle" class="axis">${i === 6 ? "today" : DAYS[d.getDay()]}</text>`).join(""));
-    return scrubbable(sid, W0, H, body, sp, `Green: minutes that count as active. Grey: lighter steps.`) + `<div class="sub-h">Last 7 days · dashed = 150 a week pace</div>${week}<div class="stat3"><div><b>${T.mvpa}</b><span>today</span></div><div><b>${D.week}</b><span>of 150, 7 days</span></div><div><b>${days.filter((d) => (d[1] ?? 0) >= 10).length} of 7</b><span>days with 10+ min</span></div></div>`;
+  if (key === "mvpa" || key === "light") {
+    const cB = css("--act"), cL = css("--act2");
+    const H = 70, body = fut(H) + T.stepsMin.map((v, k) => { const xx = x(T.wake + k).toFixed(1); if (T.brisk[k]) return `<rect x="${xx}" y="10" width="1.3" height="36" fill="${cB}"/>`; if (T.lightMin[k]) return `<rect x="${xx}" y="22" width="1.3" height="24" fill="${cL}" opacity=".85"/>`; return v > 0 ? `<rect x="${xx}" y="${46 - Math.min(20, v / 3)}" width="1" height="${Math.min(20, v / 3)}" fill="${css("--ink3")}" opacity=".35"/>` : ""; }).join("") + taxis(H);
+    const sp = []; for (let k = 0; k < T.n; k += 2) sp.push([x(T.wake + k), 28, `${ampm(T.wake + k)} · ${T.stepsMin[k]} steps/min${T.brisk[k] ? " · <b>brisk</b>" : T.lightMin[k] ? " · <b>light</b>" : ""}`]);
+    const days = [...D.hist.slice(-7, -1).map((h) => [h.d, h.mvpa, h.lightAct]), [D.latest.d, T.mvpa, T.light]], wmax = Math.max(50, ...days.map((d) => (d[1] ?? 0) + (d[2] ?? 0))), bw = (W0 - 36) / 7, yb = sc(0, wmax, 118, 10);
+    const week = S(W0, 136, `<line x1="30" x2="${W0 - 6}" y1="${yb(150 / 7)}" y2="${yb(150 / 7)}" stroke="${css("--ink3")}" stroke-dasharray="3 3"/>` + days.map(([d, b, l], i) => { const cx = 30 + i * bw + bw / 2, x0 = (30 + i * bw + 5).toFixed(1), w = (bw - 10).toFixed(1); if (b == null && l == null) return `<text x="${cx.toFixed(1)}" y="112" text-anchor="middle" class="axis">—</text><text x="${cx.toFixed(1)}" y="132" text-anchor="middle" class="axis">${i === 6 ? "today" : DAYS[d.getDay()]}</text>`; const bb = b ?? 0, ll = l ?? 0; return `<rect x="${x0}" y="${yb(bb).toFixed(1)}" width="${w}" height="${Math.max(0, yb(0) - yb(bb)).toFixed(1)}" rx="3" fill="${cB}" opacity="${i === 6 ? 1 : 0.6}"/><rect x="${x0}" y="${yb(bb + ll).toFixed(1)}" width="${w}" height="${Math.max(0, yb(bb) - yb(bb + ll)).toFixed(1)}" rx="3" fill="${cL}" opacity="${i === 6 ? 0.9 : 0.45}"/><text x="${cx.toFixed(1)}" y="${yb(bb + ll) - 4}" text-anchor="middle" class="axis">${key === "light" ? ll : bb}</text><text x="${cx.toFixed(1)}" y="132" text-anchor="middle" class="axis">${i === 6 ? "today" : DAYS[d.getDay()]}</text>`; }).join(""));
+    const wkL = days.reduce((a, d) => a + (d[2] ?? 0), 0);
+    return scrubbable(sid, W0, H, body, sp, `<span class="key" style="--k:${cB}">brisk (100+ steps/min or HR sessions)</span><span class="key" style="--k:${cL}">light (60–99 steps/min)</span>`) + `<div class="sub-h">Last 7 days · dashed = 150 a week brisk pace</div>${week}<div class="stat3"><div><b>${T.mvpa} · ${T.light}</b><span>brisk · light today</span></div><div><b>${D.week}</b><span>brisk of 150, 7 days</span></div><div><b>${wkL}</b><span>light minutes, 7 days</span></div></div>`;
+  }
+  if (key === "ccost") {
+    const pts = []; for (let k = 1; k < T.n; k++) { const c = T.stepsMin[k]; if (c >= 60 && c <= 135 && T.hr[k] != null && T.stepsMin[k - 1] >= 60) pts.push([c, T.hr[k]]); }
+    if (pts.length < 3) return `<p class="note" style="margin:0">No steady walking recorded yet today. The trend uses days with at least 3 minutes of steady walking.</p>`;
+    const H = 200, x = sc(55, 140, 36, W0 - 6), hv = pts.map((p2) => p2[1]), y = sc(Math.min(...hv, T.rest) - 5, Math.max(...hv) + 5, H - 24, 10);
+    const body = `<line x1="36" x2="${W0 - 6}" y1="${y(T.rest)}" y2="${y(T.rest)}" stroke="${css("--ink3")}" stroke-dasharray="3 3"/><text x="${W0 - 6}" y="${y(T.rest) - 4}" text-anchor="end" class="axis">resting ${Math.round(T.rest)}</text>`
+      + `<rect x="${x(80)}" y="8" width="${x(120) - x(80)}" height="${H - 32}" fill="${col}" opacity=".06"/>` + pts.map(([c, v]) => `<circle cx="${x(c).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${col}" opacity=".7"/>`).join("")
+      + [60, 80, 100, 120, 140].map((c) => `<text x="${x(c)}" y="${H - 4}" text-anchor="middle" class="axis">${c}</text>`).join("");
+    return S(W0, H, body) + `<p class="note">Each dot is a minute of walking today: cadence (steps/min, across) against heart rate. The shaded band (80–120 steps/min) is what the index uses.</p>`;
   }
   const H = 112, cw = (W0 - 36) / 15, body = [], xh = sc(7 * 60, 22 * 60, 30, W0 - 6);
   for (let hh = 7; hh < 22; hh++) { const i = hh - 7, done = hh < T.nowH, on = done && T.hourly[hh] >= 250, curH = hh === T.nowH; body.push(`<rect x="${(30 + i * cw + 2).toFixed(1)}" y="12" width="${(cw - 4).toFixed(1)}" height="40" rx="7" fill="${on ? col : "none"}" stroke="${on ? "none" : css("--ink3")}" stroke-opacity="${done || curH ? 0.6 : 0.2}" ${curH ? `stroke-dasharray="3 3"` : ""}/>${i % 3 === 0 ? `<text x="${(30 + i * cw + cw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle" class="axis">${hr12(hh)}</text>` : ""}`); }
@@ -212,7 +236,22 @@ function viewNow(key, B) {
     return scrubbable(sid, W0, H, body, sp, `Each bar is a night, from falling asleep to waking. Dots: midpoints.${um != null ? " Dashed: your usual midpoint." : ""}`)
       + `<div class="stat3"><div><b>${clock(h.onset)}</b><span>asleep</span></div><div><b>${clock(h.wake)}</b><span>awake</span></div><div><b>${all.length >= 3 ? `±${Math.round(sd(all))} min` : "—"}</b><span>midpoint spread</span></div></div>`;
   }
+  if (key === "sri") {
+    const days = D.H.slice(-7), H = 22 * days.length + 26, x = sc(0, 1440, 40, W0 - 4);
+    const body = days.map((z, i) => { const st0 = z.summary?.states ?? ""; let out = `<text x="0" y="${i * 22 + 15}" class="axis">${DAYS[z.d.getDay()]}</text><rect x="40" y="${i * 22 + 4}" width="${W0 - 44}" height="14" rx="4" fill="${css("--track")}"/>`; let run = 0; for (let k = 0; k <= 1440; k++) { if (k < 1440 && st0[k] === "1") run++; else { if (run) out += `<rect x="${x(k - run).toFixed(1)}" y="${i * 22 + 4}" width="${Math.max(0.8, x(k) - x(k - run)).toFixed(1)}" height="14" rx="3" fill="${col}"/>`; run = 0; } } return out; }).join("")
+      + [0, 6, 12, 18, 24].map((hh) => `<text x="${x(hh * 60)}" y="${H - 4}" text-anchor="middle" class="axis">${hr12(hh % 24)}</text>`).join("");
+    return S(W0, H, body) + `<p class="note">Each row is a calendar day, midnight to midnight; filled = asleep. The more the rows line up, the higher the index.</p>`;
+  }
+  if (key === "dip") {
+    const hs = D.H.slice(-14).filter((z) => z.summary?.night?.hr?.mean != null && z.summary?.day?.hr_mean_awake != null);
+    if (!hs.length) return `<p class="note" style="margin:0">Needs a night and the day before with heart rate.</p>`;
+    const H = 180, bw = (W0 - 40) / 14, vals = hs.flatMap((z) => [z.summary.night.hr.mean, z.summary.day.hr_mean_awake]), y = sc(Math.min(...vals) - 5, Math.max(...vals) + 5, H - 24, 10), off = 14 - hs.length;
+    const body = hs.map((z, j) => { const i = j + off, cx = 40 + i * bw, a0 = z.summary.day.hr_mean_awake, n0 = z.summary.night.hr.mean; return `<line x1="${(cx + bw / 2).toFixed(1)}" x2="${(cx + bw / 2).toFixed(1)}" y1="${y(a0)}" y2="${y(n0)}" stroke="${col}" stroke-width="3" stroke-linecap="round" opacity="${j === hs.length - 1 ? 1 : 0.5}"/><circle cx="${(cx + bw / 2).toFixed(1)}" cy="${y(a0)}" r="3.5" fill="${css("--watch")}"/><circle cx="${(cx + bw / 2).toFixed(1)}" cy="${y(n0)}" r="3.5" fill="${css("--sleep")}"/>${z.dipPct != null ? `<text x="${(cx + bw / 2).toFixed(1)}" y="${y(n0) + 14}" text-anchor="middle" class="axis">${z.dipPct.toFixed(0)}</text>` : ""}`; }).join("")
+      + [Math.round(Math.min(...vals)), Math.round(Math.max(...vals))].map((v) => `<text x="30" y="${y(v) + 4}" text-anchor="end" class="axis">${v}</text>`).join("");
+    return S(W0, H, body) + `<p class="note"><span class="key" style="--k:${css("--watch")}">awake average</span><span class="key" style="--k:${css("--sleep")}">asleep average</span> Numbers under each night: the dip in %.</p>`;
+  }
   if (!nt) return `<p class="note" style="margin:0">No minute-level data for this night.</p>`;
+  if (key === "cvhr") return viewNow("rhr", { ...B, m: M.rhr, you: null }) + `<p class="note">The index counts repeating 20–90 second surges in this heart-rate trace while asleep. REM sleep and brief awakenings also make surges, so the number runs high and isn't comparable to a sleep study's apnea–hypopnea index; watch your own trend.</p>`;
   if (key === "sleep") {
     if (!nt.stages) return `<p class="note" style="margin:0">The band didn't record sleep stages this night.</p>`;
     const H = 150, x = sc(0, nt.N, 44, W0 - 6), laneH = 22, gap = 8;
@@ -273,6 +312,7 @@ function viewTime(key, B) {
     const ty = H - 22 - tagRow + 6;
     body += `<text x="24" y="${ty + 5}" text-anchor="end" class="axis">tags</text>` + win.map((h, j) => tagsKnown(h).map((t, k) => `<rect x="${(x(j) - 1.2).toFixed(1)}" y="${ty - 2 + k * 3}" width="2.4" height="${win.length > 100 ? 5 : 7}" rx="1" fill="${tagColor(t.key)}"/>`).join("")).join("");
   }
+  for (const lab of D.labs ?? []) { const j = win.findIndex((h) => h.date >= lab.date); if (j > 0 || (j === 0 && win[0].date === lab.date)) body += `<line x1="${x(j)}" x2="${x(j)}" y1="12" y2="${H - 22}" stroke="${css("--ink")}" stroke-opacity=".35" stroke-dasharray="2 3"/><text x="${x(j)}" y="9" text-anchor="middle" class="axis">labs</text>`; }
   const step = win.length > 100 ? 91 : win.length > 45 ? 30 : win.length > 14 ? 7 : Math.max(1, Math.ceil(win.length / 4));
   for (let j = win.length - 1; j >= 0; j -= step) body += `<text x="${x(j)}" y="${H - 4}" text-anchor="middle" class="axis">${MON[win[j].d.getMonth()]} ${win[j].d.getDate()}</text>`;
   const sp = pts.map((p) => [x(p[0]), y(p[1]), `${m.day ? dname(p[2].d) : `${nightName(p[2])} ${MON[p[2].d.getMonth()]} ${p[2].d.getDate()}`} · <b>${m.f(p[1])} ${m.unit}</b>${tagsKnown(p[2]).map((t) => ` · ${t.label}`).join("")}${p[2].sick ? " · Sick" : ""}`]);

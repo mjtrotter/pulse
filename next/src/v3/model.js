@@ -1,13 +1,17 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20260924180231";
-import { dayOf, toMs } from "../core/time.js?v=20260924180231";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924180231";
-import { detectWorkouts } from "../analytics/workouts.js?v=20260924180231";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924180231";
-import { stepGoal } from "../analytics/scores.js?v=20260924180231";
-import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924180231";
+import * as db from "../core/db.js?v=20260924205306";
+import { dayOf, toMs } from "../core/time.js?v=20260924205306";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924205306";
+import { detectWorkouts } from "../analytics/workouts.js?v=20260924205306";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924205306";
+import { stepGoal } from "../analytics/scores.js?v=20260924205306";
+import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924205306";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260924205306";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260924205306";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260924205306";
+import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260924205306";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
@@ -48,19 +52,40 @@ export async function buildModel(store, profile) {
     } else { h.asked = false; h.w = h.trig.length ? 1 : 1 / ASK_RATE; }
   });
   const workoutTags = new Map(tagRows.filter((r) => r.tag.startsWith("workout ")).map((r) => [r.tag.slice(8), r]));
+  // Advanced per-day values the drill-downs can trend.
+  const sriBy = new Map(sriSeries(sums).map((x) => [x.date, x.sri]));
+  for (const h of hist) {
+    const sm = h.summary;
+    h.sri7 = sriBy.get(h.date) ?? null;
+    h.dipPct = sm ? nocturnalDip(sm)?.dipPct ?? null : null;
+    h.cvhrIndex = sm?.night?.cvhr?.index ?? null;
+    h.ccost = sm?.day?.cardiac_cost?.bpmPer100spm ?? null;
+    h.stageHr = sm?.night?.stage_hr ?? null;
+  }
   const L = hist.length - 1;
   const typical = typicalHourly(hist.slice(0, L));
   const bands = (await db.all(store, "band")).sort((a, b) => (a.last_sync < b.last_sync ? 1 : -1));
   const band = bands[0] ?? null;
   const T = await todayData(store, profile, hist, band, workoutTags);
   const last = hist[L];
-  if (T) Object.assign(last, { steps: Math.max(last.steps ?? 0, T.steps), mvpa: T.mvpa, moveH: T.moveH, dayHr: T.dayHr ?? last.dayHr, workouts: T.sessionsRaw });
+  if (T) Object.assign(last, { steps: Math.max(last.steps ?? 0, T.steps), mvpa: T.mvpa, lightAct: T.light, moveH: T.moveH, dayHr: T.dayHr ?? last.dayHr, workouts: T.sessionsRaw });
   const ecg = (await db.all(store, "ecg")).sort((a, b) => (a.t < b.t ? -1 : 1));
   const bp = (await db.all(store, "bp")).sort((a, b) => (a.t < b.t ? -1 : 1));
   const labs = ((await db.getSetting(store, "labs")) ?? []).sort((a, b) => (a.date < b.date ? -1 : 1));
   const bandBp = (await db.all(store, "hrv_vendor")).filter((r) => r.bp_sys > 0 && r.hr > 0).map((r) => ({ t: r.t, sys: r.bp_sys, dia: r.bp_dia }));
   const cache = new Map();
+  const hrmax = hrMaxFor(profile), rhrUsual = median(hist.slice(-29).map((h) => h.rhr));
+  const tagsForLoad = [...workoutTags.values()].filter((t) => t.rpe != null).map((t) => ({ date: t.date, start: t.tag.slice(8), rpe: t.rpe, minutes: t.minutes }));
+  const adv = {
+    illness: illnessWatch(sums), cusum: cusumRHR(sums),
+    apnea: apneaRisk(profile, sums.slice(-14), median(sums.slice(-14).map((z) => z.night?.cvhr?.index))),
+    sri: sri(sums), chrono: chronotype(sums), hrRhythm: hrRhythm(sums), tempRhythm: tempRhythm(sums),
+    vo2: vo2max(profile, sums), uth: hrmax && rhrUsual ? vo2maxUth({ hrmax, rhr: rhrUsual }) : null,
+    hrr: hrrTrend(sums), ccost: cardiacCostSeries(sums), load: weeklyLoad(sums, tagsForLoad),
+    energy: T?.energy ?? null, bmr: mifflin(profile), bp: await fitBp(store, bp, bandBp, ecg),
+  };
   return {
+    adv,
     hist, L, typical, today: T, band, ecg, bp, labs, bandBp, workoutTags, goal: profile.step_goal || stepGoal(profile.age ?? 40),
     /** Minute-level detail for night i (cached). */
     async night(i) {
@@ -91,8 +116,43 @@ function entry(s, date, today) {
   h.steps = day?.steps ?? null; h.moveH = day?.activity?.active_hours ?? null; h.dayHr = day?.hr_mean_awake ?? null; h.workouts = day?.workouts ?? [];
   const wMin = (day?.workouts ?? []).reduce((a, w) => a + w.minutes, 0);
   h.mvpa = day ? Math.round(Math.max(day.activity?.mvpa_min ?? 0, wMin)) : null;
+  h.lightAct = day?.activity?.light_min ?? null;
+  h.trimp = day?.trimp ?? null;
   h.hourlySteps = day?.activity?.hourly ?? null; h.wear = day?.wear_min ?? null;
   return h;
+}
+
+/** Resting energy, Mifflin–St Jeor (Mifflin et al., Am J Clin Nutr 1990;51:241-7): kcal/day. */
+export function mifflin(p) {
+  if (!p?.weight || !p?.height || !p?.age || !p?.sex) return null;
+  return 10 * p.weight + 6.25 * p.height - 5 * p.age + (p.sex === "male" ? 5 : -161);
+}
+
+/** The experimental cuff-calibrated BP model: gathers heart rate, temperature and steps around each cuff
+ *  reading, runs the model ladder, and (only when a model is usable) estimates across the last 24 h. */
+async function fitBp(store, cuff, bandBp, ecg) {
+  if (cuff.length < 2) return { n: cuff.length, need: 14 - cuff.length, usable: false };
+  const iso = (ms) => { const d = new Date(ms), p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
+  const hr = [], temp = [], acts = new Map();
+  for (const r of cuff.slice(-60)) {
+    const t = toMs(r.t);
+    hr.push(...(await db.range(store, "hr", iso(t - 12 * 60e3), iso(t + 60e3))));
+    temp.push(...(await db.range(store, "temp", iso(t - 35 * 60e3), iso(t + 35 * 60e3))));
+    const date = r.t.slice(0, 10);
+    if (!acts.has(date)) acts.set(date, minuteSteps(await db.range(store, "activity", `${date} 00:00:00`, `${date} 23:59:59`)));
+  }
+  const ecgRows = ecg.map((e) => ({ t: e.t, hr: e.result?.hrv?.hr ?? null, qtc: null }));
+  const ctx = { bandBp, hr, temp, ecg: ecgRows, stepsByMinute: (date, minute) => acts.get(date)?.get(minute) ?? 0 };
+  const model = bpFit(cuff.slice(-60), ctx, { minN: 14 }); // 7 features: at least 2 readings each before trusting a fit
+  const out = { ...model, models: model.models?.map(({ predict, ...m }) => m) };
+  if (model.usable) {
+    const now = Date.now(), from = iso(now - 864e5), to = iso(now);
+    const hr24 = await db.range(store, "hr", from, to), temp24 = await db.range(store, "temp", from, to);
+    const d0 = from.slice(0, 10), d1 = to.slice(0, 10);
+    for (const d of [d0, d1]) if (!acts.has(d)) acts.set(d, minuteSteps(await db.range(store, "activity", `${d} 00:00:00`, `${d} 23:59:59`)));
+    out.series = bpSeries(model, from, to, { ...ctx, hr: hr24, temp: temp24 });
+  }
+  return out;
 }
 
 /** Your usual steps for each clock hour (median of up to 28 prior days with step data), or null. */
@@ -159,6 +219,7 @@ async function todayData(store, profile, hist, band, workoutTags) {
   });
   const inSession = (k) => sessions.some((s) => wake + k >= s.a && wake + k < s.b);
   const brisk = stepsMin.map((v, k) => v >= 100 || (inSession(k) && (hr[k] ?? 0) >= hrr40));
+  const light = stepsMin.map((v, k) => !brisk[k] && v >= 60);
   const hourly = new Array(24).fill(0);
   for (const [m, v] of mins) hourly[Math.floor(m / 60)] += v;
   const nowH = now.getHours();
@@ -173,8 +234,9 @@ async function todayData(store, profile, hist, band, workoutTags) {
   const steps = Math.max(perMin, daily?.steps ?? 0, band?.snapshot_at?.slice(0, 10) === date ? band.snapshot?.steps ?? 0 : 0);
   const lastData = [lastHr?.t, act.length ? act[act.length - 1].t : null].filter(Boolean).sort().pop();
   const vals = hr.filter((v) => v != null);
-  return { wake, now: nowMin, n, hr, stepsMin, sessions, sessionsRaw: raw, brisk, hourly, hrr40, hrr60, hrMax, rest, nowH, steps,
-    mvpa: brisk.filter(Boolean).length, moveH, stillNow: run, longestStill: Math.max(run, 0, ...still),
+  const en = energy(profile, { hrRows: hrRows, minuteSteps: mins, date, rhr: rest, hrmax: hrMax });
+  return { energy: en, wake, now: nowMin, n, hr, stepsMin, sessions, sessionsRaw: raw, brisk, hourly, hrr40, hrr60, hrMax, rest, nowH, steps,
+    mvpa: brisk.filter(Boolean).length, light: light.filter(Boolean).length, lightMin: light, moveH, stillNow: run, longestStill: Math.max(run, 0, ...still),
     dayHr: restHr.length >= 10 ? restHr.reduce((a, b) => a + b, 0) / restHr.length : null, hrNow,
     hrLo: vals.length ? Math.min(...vals) : null, hrHi: vals.length ? Math.max(...vals) : null,
     dataEnd: lastData && lastData.slice(0, 10) === date ? minOfDay(lastData) : null, hasData: vals.length > 0 || perMin > 0 };
