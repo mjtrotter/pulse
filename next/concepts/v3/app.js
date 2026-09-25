@@ -2,13 +2,13 @@
 // its drill-downs), Measure (ECG + blood pressure, recorded over time) and Profile. Measure and Profile run
 // the app's real analytics modules (ECG, advanced HRV, ECG-derived breathing, median beat, lab indices,
 // AHA PREVENT) in the browser.
-import * as W from "./data.js?v=20260924205306";
-import { synthEcg } from "./synth.js?v=20260924205306";
-import { ecgSummary, bandpass } from "../../src/analytics/ecg.js?v=20260924205306";
-import { advancedHRV } from "../../src/analytics/hrv_advanced.js?v=20260924205306";
-import { edrFusion, medianBeat, morphologyFilter } from "../../src/analytics/edr.js?v=20260924205306";
-import { derived } from "../../src/analytics/labs.js?v=20260924205306";
-import { prevent } from "../../src/analytics/prevent.js?v=20260924205306";
+import * as W from "./data.js?v=20260924214250";
+import { synthEcg } from "./synth.js?v=20260924214250";
+import { ecgSummary, bandpass } from "../../src/analytics/ecg.js?v=20260924214250";
+import { advancedHRV } from "../../src/analytics/hrv_advanced.js?v=20260924214250";
+import { edrFusion, medianBeat, morphologyFilter } from "../../src/analytics/edr.js?v=20260924214250";
+import { derived } from "../../src/analytics/labs.js?v=20260924214250";
+import { prevent } from "../../src/analytics/prevent.js?v=20260924214250";
 
 const { median, mean, sd } = W;
 const root = document.documentElement;

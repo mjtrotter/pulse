@@ -3,14 +3,14 @@
 //   day:   activity and heart-rate load over D (00:00-24:00)
 //   scores: Sleep / Recovery / Activity (analytics/scores.js), filled by scoreDays()
 // Trends and scores read these, never months of raw 5-s heart rate.
-import { hrmaxTanaka, zonesAndLoad } from "./metrics.js?v=20260924205306";
-import { detectWorkouts } from "./workouts.js?v=20260924205306";
-import { nightSleep } from "./sleep.js?v=20260924205306";
-import { sleepingBandHRV, sleepingHR, sleepingSpO2, sleepingTemp } from "./overnight.js?v=20260924205306";
-import { nightPPI, nightRespiration } from "./ppi.js?v=20260924205306";
-import { median } from "./baseline.js?v=20260924205306";
-import { cvhr } from "./watch.js?v=20260924205306";
-import { cardiacCost, hrByStage } from "./fitness.js?v=20260924205306";
+import { hrmaxTanaka, zonesAndLoad } from "./metrics.js?v=20260924214250";
+import { detectWorkouts } from "./workouts.js?v=20260924214250";
+import { nightSleep } from "./sleep.js?v=20260924214250";
+import { sleepingBandHRV, sleepingHR, sleepingSpO2, sleepingTemp } from "./overnight.js?v=20260924214250";
+import { nightPPI, nightRespiration } from "./ppi.js?v=20260924214250";
+import { median } from "./baseline.js?v=20260924214250";
+import { cvhr } from "./watch.js?v=20260924214250";
+import { cardiacCost, hrByStage } from "./fitness.js?v=20260924214250";
 
 export const SUMMARY_VERSION = 6; // bump to force a rebuild when the definitions change
 

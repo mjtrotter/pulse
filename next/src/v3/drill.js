@@ -1,10 +1,10 @@
 // The metric catalog and the full-screen drill-down every tile opens: headline value, bands (population,
 // your usual, what your sleep predicts), a plain-language read, then four views: the night/day itself,
 // Over time, Your range and What affects it.
-import { tempC } from "../core/units.js?v=20260924205306";
-import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924205306";
-import { labContext } from "./labsui.js?v=20260924205306";
-import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924205306";
+import { tempC } from "../core/units.js?v=20260924214250";
+import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924214250";
+import { labContext } from "./labsui.js?v=20260924214250";
+import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924214250";
 
 const ALL = ["sleep", "alcohol", "caffeine", "stress", "workout"];
 const decade = (age) => Math.min(70, Math.max(20, Math.floor((age ?? 40) / 10) * 10));

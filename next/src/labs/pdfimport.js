@@ -7,8 +7,8 @@
 // pdf.js itself is NOT imported at module load: it's ~1.7MB and most app sessions never touch a
 // PDF, so it's dynamically imported (see loadPdfjs) only when extractText/importLabPdf run.
 
-const PDFJS_URL = new URL("../../vendor/pdfjs/pdf.min.js", import.meta.url);
-const PDFJS_WORKER_URL = new URL("../../vendor/pdfjs/pdf.worker.min.js", import.meta.url);
+const PDFJS_URL = new URL("../../vendor/pdfjs/pdf4.legacy.min.js", import.meta.url);
+const PDFJS_WORKER_URL = new URL("../../vendor/pdfjs/pdf4.legacy.worker.min.js", import.meta.url);
 
 let pdfjsPromise = null;
 function loadPdfjs() {

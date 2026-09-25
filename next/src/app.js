@@ -1,22 +1,22 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260924205306";
-import * as db from "./core/db.js?v=20260924205306";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924205306";
-import { stamp } from "./core/time.js?v=20260924205306";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924205306";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924205306";
-import { scoreDays } from "./analytics/scores.js?v=20260924205306";
-import { buildModel } from "./v3/model.js?v=20260924205306";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924205306";
-import { drill, M } from "./v3/drill.js?v=20260924205306";
-import { today } from "./v3/today.js?v=20260924205306";
-import { night } from "./v3/night.js?v=20260924205306";
-import { trends } from "./v3/trends.js?v=20260924205306";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924205306";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924205306";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924205306";
-import { advSheet } from "./v3/advanced.js?v=20260924205306";
+import { Band } from "./core/ble.js?v=20260924214250";
+import * as db from "./core/db.js?v=20260924214250";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924214250";
+import { stamp } from "./core/time.js?v=20260924214250";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924214250";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924214250";
+import { scoreDays } from "./analytics/scores.js?v=20260924214250";
+import { buildModel } from "./v3/model.js?v=20260924214250";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924214250";
+import { drill, M } from "./v3/drill.js?v=20260924214250";
+import { today } from "./v3/today.js?v=20260924214250";
+import { night } from "./v3/night.js?v=20260924214250";
+import { trends } from "./v3/trends.js?v=20260924214250";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924214250";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924214250";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924214250";
+import { advSheet } from "./v3/advanced.js?v=20260924214250";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -284,7 +284,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924205306");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924214250");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -481,7 +481,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260924205306");
+    const { seedDemo } = await import("./demo.js?v=20260924214250");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },
