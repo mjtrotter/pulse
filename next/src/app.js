@@ -1,24 +1,24 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260925073227";
-import * as db from "./core/db.js?v=20260925073227";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260925073227";
-import { stamp } from "./core/time.js?v=20260925073227";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260925073227";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260925073227";
-import { scoreDays } from "./analytics/scores.js?v=20260925073227";
-import { mergeLabPanel } from "./analytics/labs.js?v=20260925073227";
-import { buildModel } from "./v3/model.js?v=20260925073227";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260925073227";
-import { drill, M } from "./v3/drill.js?v=20260925073227";
-import { today } from "./v3/today.js?v=20260925073227";
-import { night } from "./v3/night.js?v=20260925073227";
-import { trends } from "./v3/trends.js?v=20260925073227";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260925073227";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260925073227";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260925073227";
-import { advSheet } from "./v3/advanced.js?v=20260925073227";
-import { cycleView } from "./v3/cycleui.js?v=20260925073227";
+import { Band } from "./core/ble.js?v=20260925164715";
+import * as db from "./core/db.js?v=20260925164715";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260925164715";
+import { stamp } from "./core/time.js?v=20260925164715";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260925164715";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260925164715";
+import { scoreDays } from "./analytics/scores.js?v=20260925164715";
+import { mergeLabPanel } from "./analytics/labs.js?v=20260925164715";
+import { buildModel } from "./v3/model.js?v=20260925164715";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260925164715";
+import { drill, M } from "./v3/drill.js?v=20260925164715";
+import { today } from "./v3/today.js?v=20260925164715";
+import { night } from "./v3/night.js?v=20260925164715";
+import { trends } from "./v3/trends.js?v=20260925164715";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260925164715";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260925164715";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260925164715";
+import { advSheet } from "./v3/advanced.js?v=20260925164715";
+import { cycleView } from "./v3/cycleui.js?v=20260925164715";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -52,6 +52,7 @@ async function connect({ auto = false } = {}) {
     const band = auto ? await Band.reconnect({ log: ctx.log, mac: await db.getSetting(ctx.store, "band_name") }) : await Band.choose({ log: ctx.log });
     if (!band) { ctx.setStatus("off"); return false; }
     adoptBand(band);
+    if (!auto) { ctx.picked = true; ctx.noAuto = false; } // chosen in the picker: this phone may switch to it
     await db.setSetting(ctx.store, "band_name", band.name);
     ctx.setStatus("on", band.name);
     await sync();
@@ -75,7 +76,7 @@ function adoptBand(band) {
 }
 let reconnecting = false;
 async function reconnectQuietly() {
-  if (DEMO || ctx.band?.connected || reconnecting || !ctx.profile.onboarded) return false;
+  if (DEMO || ctx.band?.connected || reconnecting || !ctx.profile.onboarded || ctx.noAuto) return false;
   reconnecting = true;
   try {
     for (const wait of [0, 1500, 4000]) {
@@ -98,12 +99,17 @@ async function sync() {
   if (!ctx.band?.connected || ctx.busy || st.recRun) return;
   ctx.busy = true;
   try {
-    const res = await syncBand(ctx.band, ctx.store, { onStep: (t) => ctx.setStatus("syncing", t), log: ctx.log });
-    ctx.mac = res.mac; ctx.info = res.info;
+    const expectMac = ctx.picked ? null : await db.getSetting(ctx.store, "band_mac");
+    const res = await syncBand(ctx.band, ctx.store, { onStep: (t) => ctx.setStatus("syncing", t), log: ctx.log, expectMac });
+    ctx.mac = res.mac; ctx.info = res.info; ctx.picked = false;
+    if (res.info?.mac) await db.setSetting(ctx.store, "band_mac", res.info.mac);
     ctx.setStatus("syncing", "Analysing…");
     await recomputeDays(ctx.store, db, res.dates, ctx.profile, scoreDays);
     ctx.setStatus("on", "Synced just now");
   } catch (e) {
+    // Someone else's band answered an automatic reconnect: let go of it at once (a band talks to one phone at a
+    // time) and stop reconnecting until the person picks a band themselves.
+    if (e.name === "OtherBand") { ctx.noAuto = true; ctx.lastBand = null; ctx.band?.disconnect(); }
     ctx.log(`Sync stopped: ${e.name}: ${e.message}`, true);
     toast(`Sync stopped: ${e.message}`, 5000);
     ctx.setStatus(ctx.band?.connected ? "on" : "off");
@@ -134,7 +140,7 @@ const invalidate = () => { model = null; };
 async function prepare() {
   if (!model) model = await buildModel(ctx.store, ctx.profile);
   const m = model;
-  Object.assign(D, { profile: ctx.profile, hist: m.hist, L: m.L, latest: m.hist[m.L], typical: m.typical, T: m.today, goal: m.goal, band: m.band, ecg: m.ecg, bp: m.bp, labs: m.labs, bandBp: m.bandBp ?? [], advData: m.adv, cycle: m.cycle });
+  Object.assign(D, { profile: ctx.profile, hist: m.hist, L: m.L, latest: m.hist[m.L], typical: m.typical, T: m.today, goal: m.goal, band: m.band, ecg: m.ecg, bp: m.bp, labs: m.labs, events: m.events ?? [], bandBp: m.bandBp ?? [], advData: m.adv, cycle: m.cycle });
   D.nights = m.hist.map((h, i) => (h.hasNight ? i : -1)).filter((i) => i >= 0);
   D.week = m.hist.slice(-7, -1).reduce((a, h) => a + (h.mvpa ?? 0), 0) + (m.today?.mvpa ?? 0);
   if (nightParam != null) { st.sel = Math.max(0, m.L - nightParam); nightParam = null; }
@@ -340,7 +346,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260925073227");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260925164715");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -356,7 +362,9 @@ function readProfileForm(f, base) {
   if (!f.sex.value) { toast("Please choose female or male."); return null; }
   if (!(height >= 120 && height <= 230)) { toast("Please check your height."); return null; }
   if (!(weight >= 30 && weight <= 250)) { toast("Please check your weight."); return null; }
-  return { ...base, name: f.name.value.trim(), age, sex: f.sex.value, height, weight };
+  const wv = parseFloat(f.waist?.value), waist = Number.isFinite(wv) ? (us ? wv * 2.54 : wv) : null;
+  if (waist != null && !(waist >= 50 && waist <= 200)) { toast("Please check your waist measurement."); return null; }
+  return { ...base, name: f.name.value.trim(), age, sex: f.sex.value, height, weight, waist };
 }
 
 // ---------- taps ----------
@@ -435,6 +443,8 @@ document.addEventListener("click", async (e) => {
   const ai = on("[data-advinfo]"); if (ai) { showSheet(`adv:${ai.dataset.advinfo}`); return; }
   if (on("[data-golabs2]")) { await setTab("measure"); setTimeout(() => $("#labs")?.scrollIntoView({ behavior: "smooth" }), 200); return; }
   const dl = on("[data-dellab]"); if (dl) { const labs = ((await db.getSetting(ctx.store, "labs")) ?? []).filter((x) => x.date !== dl.dataset.dellab); await db.setSetting(ctx.store, "labs", labs); invalidate(); await stay(); return; }
+  const de = on("[data-delevent]"); if (de) { const events = ((await db.getSetting(ctx.store, "events")) ?? []).filter((x) => (x.id ?? x.date) !== de.dataset.delevent); await db.setSetting(ctx.store, "events", events); invalidate(); await stay(); return; }
+  if (on("[data-allevents]")) { st.allEvents = !st.allEvents; await stay(); return; }
   const ex = on("[data-expand]"); if (ex) { const id = ex.dataset.expand; st.open.has(id) ? st.open.delete(id) : st.open.add(id); await stay(); return; }
   const sh = on("[data-sheet]"); if (sh) { showSheet(sh.dataset.sheet); return; }
   const tg = on("[data-tagg]"); if (tg) { st.tagg = tg.dataset.tagg; await stay(); return; }
@@ -457,6 +467,18 @@ document.addEventListener("submit", async (e) => {
     const p = readProfileForm(f, ctx.profile); if (!p) return;
     if (kind === "obprofile") { p.betablocker = !!f.betablocker?.checked; await ctx.setProfile(p); if (!(await db.getSetting(ctx.store, "schedule"))) await db.setSetting(ctx.store, "schedule", DEFAULT_SCHEDULE); st.obStep = 2; renderOnboarding(); if (p.sex === "female" && !((await db.getSetting(ctx.store, "periods")) ?? []).length) showSheet("pastperiods"); return; }
     await ctx.setProfile(p); closeSheet(); await rebuild(); await stay(); return;
+  }
+  if (kind === "riskq") {
+    const a = { ...(ctx.profile.risk ?? {}) };
+    for (const k of ["famhx", "inflam", "women", "ancestry"]) { const r = f.querySelector(`input[name=${k}]:checked`); if (r) a[k] = r.value === "1"; }
+    await ctx.setProfile({ ...ctx.profile, risk: a }); closeSheet(); await stay(); return;
+  }
+  if (kind === "event") {
+    const label = f.label.value.trim(), date = f.date.value;
+    if (!label || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { toast("Add what changed and the date."); return; }
+    const events = (await db.getSetting(ctx.store, "events")) ?? [];
+    events.push({ id: `${date}-${Date.now().toString(36)}`, date, label, kind: f.kind.value });
+    await db.setSetting(ctx.store, "events", events); closeSheet(); toast("Saved"); invalidate(); await stay(); return;
   }
   if (kind === "stopbang") {
     const a = { ...(ctx.profile.stopbang ?? {}) };
@@ -572,7 +594,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260925073227");
+    const { seedDemo } = await import("./demo.js?v=20260925164715");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

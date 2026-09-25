@@ -1,9 +1,9 @@
 // Night: last night by default, any earlier night from the strip. Recovery gauge, sleep and deep+REM minis,
 // a plain-language summary, the trigger-based question, and last night's numbers (charts live in drill-downs).
-import { tempC } from "../core/units.js?v=20260925073227";
-import { MIN_USUAL, median, sd } from "./stats.js?v=20260925073227";
-import { expOf, M } from "./drill.js?v=20260925073227";
-import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tUnit, uid, usualOf, vital } from "./kit.js?v=20260925073227";
+import { tempC } from "../core/units.js?v=20260925164715";
+import { MIN_USUAL, median, sd } from "./stats.js?v=20260925164715";
+import { expOf, M } from "./drill.js?v=20260925164715";
+import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tUnit, uid, usualOf, vital } from "./kit.js?v=20260925164715";
 
 const ASK = [{ key: "alcohol", label: "Alcohol" }, { key: "caffeine", label: "Late caffeine" }, { key: "stress", label: "Stress" }, { key: "sick", label: "Feeling ill" }];
 

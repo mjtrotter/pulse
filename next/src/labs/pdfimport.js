@@ -162,6 +162,11 @@ const ANALYTES = [
   { key: "homocysteine", re: /^HOMOCYSTEINE\b/i, name: "Homocysteine", unit: "umol/L", group: "Heart & inflammation" },
 
   { key: "bun_creat", re: /^BUN\s*\/\s*CREATININE\s*RATIO\b/i, name: "BUN/Creatinine Ratio", unit: "", group: "Kidney" },
+  // The urine albumin/creatinine panel must precede the bare CREATININE and ALBUMIN patterns: otherwise a
+  // "Albumin, Random Urine w/ Creatinine" panel lands in the serum slots (urine creatinine, ~100 mg/dL, as serum
+  // creatinine; the ratio as serum albumin), and the real serum values that follow are then dropped as duplicates.
+  { key: "uacr", re: /^(MICRO)?ALB(UMIN)?\s*\/\s*CREAT(ININE)?(\s*RATIO)?\b/i, name: "Albumin/Creatinine Ratio, Urine", unit: "mg/g", group: "Urine" },
+  { key: "urine_creat", re: /^CREATININE,?\s*(RANDOM\s*|24\s*HR?\s*)?URINE\b/i, name: "Creatinine, Urine", unit: "mg/dL", group: "Urine" },
   { key: "egfr", re: /^(EGFR|GFR\s*ESTIMATED)\b/i, name: "eGFR", unit: "mL/min/1.73m2", group: "Kidney" },
   { key: "creatinine", re: /^CREATININE\b/i, name: "Creatinine", unit: "mg/dL", group: "Kidney",
     si: { re: /umol\/L|micromol\/L/i, unit: "mg/dL", convert: (v) => v / 88.42 } },
@@ -182,7 +187,7 @@ const ANALYTES = [
   // the same leading word as the unrelated serum ALBUMIN and MAGNESIUM results, and in this
   // report's page order the urine albumin panel is actually printed *before* the CMP's serum
   // albumin -- so without this, the serum value would never get recorded at all.
-  { key: "urine_albumin", re: /^ALBUMIN,?\s*(RANDOM\s*)?URINE\b/i, name: "Albumin, Urine", unit: "mg/dL", group: "Urine" },
+  { key: "urine_albumin", re: /^(MICRO)?ALBUMIN,?\s*(RANDOM\s*)?URINE\b/i, name: "Albumin, Urine", unit: "mg/dL", group: "Urine" },
   { key: "ag_ratio", re: /^ALBUMIN\s*\/\s*GLOBULIN\s*RATIO\b/i, name: "Albumin/Globulin Ratio", unit: "", group: "Proteins" },
   { key: "protein", re: /^PROTEIN,?\s*TOTAL\b/i, name: "Protein, Total", unit: "g/dL", group: "Proteins" },
   { key: "albumin", re: /^ALBUMIN\b/i, name: "Albumin", unit: "g/dL", group: "Proteins" },
@@ -265,7 +270,7 @@ const ANALYTES = [
 /** Human-readable canonical analyte metadata, for the UI. Mirrors ANALYTES' key/name/unit/group. */
 export const CANONICAL = ANALYTES.map(({ key, name, unit, group }) => ({ key, name, unit, group }));
 
-const UNIT_RE = /^(mg\/dL|mg\/L|mmol\/L|mmol\/mol|umol\/L|micromol\/L|ng\/mL|ng\/dL|pg\/mL|pg|IU\/L|IU\/mL|uIU\/mL|mIU\/L|mIU\/mL|U\/L|mL\/min\S*|mEq\/L|g\/dL|ug\/dL|ug\/L|mcg\/dL|mcg\/L|Angstrom|K\/uL|10\^?3\/uL|fL|nm|Thousand|Thousand\/uL|Million\/uL|cells\/uL|nmol\/L|umol\/L|%|\/uL|\/HPF|\/LPF)$/i;
+const UNIT_RE = /^(mg\/dL|mg\/L|mmol\/L|mmol\/mol|umol\/L|micromol\/L|mg\/g|ng\/mL|ng\/dL|pg\/mL|pg|IU\/L|IU\/mL|uIU\/mL|mIU\/L|mIU\/mL|U\/L|mL\/min\S*|mEq\/L|g\/dL|ug\/dL|ug\/L|mcg\/dL|mcg\/L|Angstrom|K\/uL|10\^?3\/uL|fL|nm|Thousand|Thousand\/uL|Million\/uL|cells\/uL|nmol\/L|umol\/L|%|\/uL|\/HPF|\/LPF)$/i;
 const FLAG_RE = /^(HH|LL|H|L|A|AB|ABN|CRIT|CRITICAL)$/i;
 const VALUE_TOKEN_RE = /^([<>]=?)?(-?\d+(?:\.\d+)?)(HH|LL|H|L|A)?$/i;
 

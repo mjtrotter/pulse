@@ -1,14 +1,15 @@
 // Measure: finger ECG rhythm checks and home cuff readings, each charted as recorded over time. A recording
 // opens in a full-screen view with the strip, HRV, breathing from the ECG and the average beat, all computed
 // on the phone by Pulse's analytics modules.
-import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20260925073227";
-import { advancedHRV } from "../analytics/hrv_advanced.js?v=20260925073227";
-import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20260925073227";
-import { toMs } from "../core/time.js?v=20260925073227";
-import { clamp, mean, median, ols, sd } from "./stats.js?v=20260925073227";
-import { bpCategory, bpSummary } from "./bp.js?v=20260925073227";
-import { labsBlock } from "./labsui.js?v=20260925073227";
-import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20260925073227";
+import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20260925164715";
+import { advancedHRV } from "../analytics/hrv_advanced.js?v=20260925164715";
+import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20260925164715";
+import { toMs } from "../core/time.js?v=20260925164715";
+import { clamp, mean, median, ols, sd } from "./stats.js?v=20260925164715";
+import { bpCategory, bpSummary } from "./bp.js?v=20260925164715";
+import { bpDetail } from "./riskui.js?v=20260925164715";
+import { labsBlock } from "./labsui.js?v=20260925164715";
+import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20260925164715";
 
 const SETTLE = 5;
 const AN = new Map();
@@ -315,7 +316,7 @@ function bpSection() {
       ${rows.length ? scrubbable(uid("s"), W0, H, body, rows.map((r) => [x(toMs(r.t)), y(r.sys), `${recWhen(r.t)} · <b>${r.sys}/${r.dia}</b>${r.pulse ? ` · pulse ${r.pulse}` : ""}`]), `Bars: each cuff reading, systolic to diastolic (morning solid).${roll.length >= 2 ? " Lines: 7-day averages." : ""}`) : `<p class="note">No readings in this window.</p>`}
       <div class="stat3"><div><b>${diff != null ? sign(diff, 0) : "—"}</b><span>systolic vs first week</span></div><div><b>${all.filter((r) => toMs(r.t) >= now - 7 * 864e5).length}</b><span>readings this week</span></div><div><b>${all.length}</b><span>readings logged</span></div></div>
       <p class="note">${sum ? "" : "The average appears after 2 readings. "}ACC/AHA home thresholds: stage 1 from 130/80, stage 2 from 135/85.</p>
-      <button class="cta ghost" data-sheet="bp" style="margin-top:6px">Log a reading</button></div>${cmp}`;
+      <button class="cta ghost" data-sheet="bp" style="margin-top:6px">Log a reading</button></div>${bpDetail(D.profile ?? {})}${cmp}`;
 }
 
 export function measure(ctx) {

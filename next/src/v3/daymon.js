@@ -1,7 +1,7 @@
 // Today on one shared time axis (heart rate, steps, brisk/light minutes, moving hours) and the day's
 // workouts with their tag prompts. Shown inside the Activity drill-down.
-import { mean } from "./stats.js?v=20260925073227";
-import { ampm, css, D, esc, glow, glowDef, hr12, montage, S, sc, smoothRuns, uid } from "./kit.js?v=20260925073227";
+import { mean } from "./stats.js?v=20260925164715";
+import { ampm, css, D, esc, glow, glowDef, hr12, montage, S, sc, smoothRuns, uid } from "./kit.js?v=20260925164715";
 
 const DAYX = sc(6 * 60, 22 * 60, 0, 300);
 const WTYPES = ["Strength", "Yard or housework", "Cycling", "Other"];

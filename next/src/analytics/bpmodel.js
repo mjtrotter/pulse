@@ -20,7 +20,7 @@
 // Cuff protocol assumed for `cuffRows` (doc "Cuff-aligned collection"): seated, rested 5 minutes,
 // cuff at heart level, standardized V8 wrist/posture; [{t, sys, dia, pulse}].
 
-import { mean } from "./baseline.js?v=20260925073227";
+import { mean } from "./baseline.js?v=20260925164715";
 
 // ---- time helpers (self-contained; deliberately Date.UTC-based so results don't depend on the
 // host machine's timezone — only relative differences matter here, never wall-clock instants). ----

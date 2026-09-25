@@ -1,10 +1,11 @@
 // Trends: the weekly review (this week vs last), trend lines for every metric, and the advanced groups
 // (body clock, heart fitness, illness & apnea watch, energy, blood pressure, metabolic). Each row opens the
 // metric's drill-down.
-import { mean, median, sd } from "./stats.js?v=20260925073227";
-import { M } from "./drill.js?v=20260925073227";
-import { topicRows } from "./advanced.js?v=20260925073227";
-import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260925073227";
+import { mean, median, sd } from "./stats.js?v=20260925164715";
+import { M } from "./drill.js?v=20260925164715";
+import { topicRows } from "./advanced.js?v=20260925164715";
+import { beforeAfterCard } from "./riskui.js?v=20260925164715";
+import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260925164715";
 
 /** Rows of the weekly review: key, how to aggregate a week, how to format, the noise threshold for calling a change. */
 const WEEK = [
@@ -99,6 +100,7 @@ export function trends(ctx) {
   const body = topic === "overview"
     ? `${rowsBy.watch?.ready ? `<div class="card rise adv" style="--i:1">${rowsBy.watch.html}</div>` : ""}
        <div class="sec rise first" style="--i:1"><h2>This week</h2><span class="lbl">vs the week before</span></div>${weekly()}
+       <div class="sec rise" style="--i:3"><h2>Changes you logged</h2><span class="lbl">before vs after</span></div>${beforeAfterCard()}
        <div class="topic-links rise" style="--i:3">${TOPICS.slice(1).map(([k, l]) => { const n = (rowsBy[k] ?? []).filter((r) => r.ready).length + (TOPIC_TRENDS[k] ?? []).filter((x) => M[x] && trendPoints(x) >= 2).length; return `<button class="card tl" data-ttopic="${k}"><b>${l}</b><span>${n ? `${n} metric${n === 1 ? "" : "s"}` : "filling in"}</span><span class="chev">›</span></button>`; }).join("")}</div>`
     : topicView(topic, rowsBy);
   return `${header("Weekly review · by topic", "Trends", syncChip(ctx))}${seg}${body}`;

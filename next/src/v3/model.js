@@ -1,18 +1,18 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20260925073227";
-import { dayOf, toMs } from "../core/time.js?v=20260925073227";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260925073227";
-import { detectWorkouts } from "../analytics/workouts.js?v=20260925073227";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260925073227";
-import { stepGoal } from "../analytics/scores.js?v=20260925073227";
-import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260925073227";
-import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260925073227";
-import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260925073227";
-import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260925073227";
-import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260925073227";
-import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20260925073227";
+import * as db from "../core/db.js?v=20260925164715";
+import { dayOf, toMs } from "../core/time.js?v=20260925164715";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260925164715";
+import { detectWorkouts } from "../analytics/workouts.js?v=20260925164715";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260925164715";
+import { stepGoal } from "../analytics/scores.js?v=20260925164715";
+import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260925164715";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260925164715";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260925164715";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260925164715";
+import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260925164715";
+import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20260925164715";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
@@ -87,6 +87,7 @@ export async function buildModel(store, profile) {
   const ecg = (await db.all(store, "ecg")).sort((a, b) => (a.t < b.t ? -1 : 1));
   const bp = (await db.all(store, "bp")).sort((a, b) => (a.t < b.t ? -1 : 1));
   const labs = ((await db.getSetting(store, "labs")) ?? []).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const events = ((await db.getSetting(store, "events")) ?? []).filter((e) => e?.date).sort((a, b) => (a.date < b.date ? -1 : 1));
   const bandBp = (await db.all(store, "hrv_vendor")).filter((r) => r.bp_sys > 0 && r.hr > 0).map((r) => ({ t: r.t, sys: r.bp_sys, dia: r.bp_dia }));
   const cache = new Map();
   const hrmax = hrMaxFor(profile), rhrUsual = median(hist.slice(-29).map((h) => h.rhr));
@@ -101,7 +102,7 @@ export async function buildModel(store, profile) {
   };
   return {
     adv, cycle,
-    hist, L, typical, today: T, band, ecg, bp, labs, bandBp, workoutTags, goal: profile.step_goal || stepGoal(profile.age ?? 40),
+    hist, L, typical, today: T, band, ecg, bp, labs, events, bandBp, workoutTags, goal: profile.step_goal || stepGoal(profile.age ?? 40),
     /** Minute-level detail for night i (cached). */
     async night(i) {
       if (!cache.has(i)) cache.set(i, await nightDetail(store, hist[i]));

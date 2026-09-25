@@ -1,8 +1,8 @@
 // Web Bluetooth client for one JCV8 band (Chrome on Mac/Android, Bluefy on iPhone).
 // Notifications are buffered; collect() drains them with overall and idle timeouts,
 // mirroring Band.collect in jcv8.py and BandClient.collect in Swift.
-import { decodeEcgPacket } from "../analytics/ecg.js?v=20260925073227";
-import { Cmd, decodeInfo, HISTORY, HistoryPage, isBandName, NAME_PREFIXES, namePacket, notifyPacket, NOTIFY, packet, recordTime, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260925073227";
+import { decodeEcgPacket } from "../analytics/ecg.js?v=20260925164715";
+import { Cmd, decodeInfo, HISTORY, HistoryPage, isBandName, NAME_PREFIXES, namePacket, notifyPacket, NOTIFY, packet, recordTime, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260925164715";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -27,7 +27,8 @@ export class Band {
   static async reconnect({ log = () => {}, mac = null, timeoutMs = 8000 } = {}) {
     if (!navigator.bluetooth?.getDevices) return null;
     const devices = await navigator.bluetooth.getDevices();
-    const dev = devices.find((d) => d.name && d.name === mac) ?? devices.find((d) => isBandName(d.name));
+    // With a band on record, only that band: this browser may also remember a family member's band nearby.
+    const dev = mac ? devices.find((d) => d.name === mac) : devices.find((d) => isBandName(d.name));
     if (!dev) return null;
     log(`Reconnecting to ${dev.name}`);
     const band = new Band(dev, log);

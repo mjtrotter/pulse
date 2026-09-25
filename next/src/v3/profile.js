@@ -1,9 +1,10 @@
 // Profile: who you are (feeds norms, goals and heart-rate zones), settings, heart risk from labs + home BP,
 // labs and what they imply, the band, your data, and first-run setup. Also the bottom sheets (forms).
-import { cmToFtIn, isUS, kg } from "../core/units.js?v=20260925073227";
-import { mean, sd } from "./stats.js?v=20260925073227";
-import { css, D, esc, header, relMin, st } from "./kit.js?v=20260925073227";
-import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20260925073227";
+import { cmToFtIn, isUS, kg } from "../core/units.js?v=20260925164715";
+import { mean, sd } from "./stats.js?v=20260925164715";
+import { css, D, esc, header, relMin, st } from "./kit.js?v=20260925164715";
+import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20260925164715";
+import { bodyRows } from "./riskui.js?v=20260925164715";
 
 export const bmiOf = (p) => (p.height && p.weight ? p.weight / (p.height / 100) ** 2 : null);
 
@@ -24,11 +25,12 @@ export function profile(ctx) {
   const seg = (attr, opts, cur) => `<div class="seg small inline">${opts.map(([k, l]) => `<button ${attr}="${k}" class="${cur === k ? "on" : ""}">${l}</button>`).join("")}</div>`;
   const build = new URL(import.meta.url).searchParams.get("v") ?? "dev";
   return `${header(`${esc(p.name || "You")}${p.age ? ` · ${p.age}` : ""}`, "Profile", `<span class="avatar">${esc((p.name || "?")[0])}</span>`)}
-    <div class="card rise tapcard" style="--i:1" data-sheet="profile"><div class="kv">${[["Name", esc(p.name || "—")], ["Age", p.age ?? "—"], ["Sex", p.sex ?? "—"], ["Height", p.height ? (isUS() ? `${ft}′${inch}″` : `${Math.round(p.height)} cm`) : "—"], ["Weight", p.weight ? (isUS() ? `${Math.round(kg(p.weight))} lb` : `${Math.round(p.weight)} kg`) : "—"], ["BMI", b ? b.toFixed(1) : "—"]].map(([a, v]) => `<div><span>${a}</span><b>${v}</b></div>`).join("")}</div>
+    <div class="card rise tapcard" style="--i:1" data-sheet="profile"><div class="kv">${[["Name", esc(p.name || "—")], ["Age", p.age ?? "—"], ["Sex", p.sex ?? "—"], ["Height", p.height ? (isUS() ? `${ft}′${inch}″` : `${Math.round(p.height)} cm`) : "—"], ["Weight", p.weight ? (isUS() ? `${Math.round(kg(p.weight))} lb` : `${Math.round(p.weight)} kg`) : "—"], ["BMI", b ? b.toFixed(1) : "—"], ...bodyRows(p)].map(([a, v]) => `<div><span>${a}</span><b>${v}</b></div>`).join("")}</div>
       <p class="note">Tap to edit. Used for sleep need, step goals, heart-rate zones and population ranges, and written to the band.</p></div>
     <div class="card rise" style="--i:1"><div class="chips">${tog("betablocker", "Beta-blocker")}${tog("bpMeds", "BP medication")}${tog("statin", "Statin")}${tog("smoker", "Smoker")}${tog("diabetes", "Diabetes")}</div>
       <p class="note">Beta-blockers change heart-rate zones and workout detection; the rest feed the heart-risk estimate.</p>
       ${p.sex === "female" ? `<div class="setrow" data-sheet="period" style="cursor:pointer"><span>Cycle tracking<em>On for female profiles · log a period</em></span><span class="chev">›</span></div><div class="setrow" data-sheet="pastperiods" style="cursor:pointer"><span>Add past periods<em>2–3 start dates make estimates personal right away</em></span><span class="chev">›</span></div>` : ""}
+      <div class="setrow" data-sheet="riskq" style="cursor:pointer"><span>Heart-risk questions<em>${p.risk && Object.keys(p.risk).length ? `${Object.values(p.risk).filter((v) => v != null).length} answered` : "Family history and a few others the equations leave out"}</em></span><span class="chev">›</span></div>
       <div class="setrow" data-sheet="stopbang" style="cursor:pointer"><span>Sleep apnea screening<em>${sb.answered ? `STOP-Bang ${sb.score} of 8` : "5 quick questions (STOP-Bang)"}</em></span>${sb.answered ? `<span class="badge ${sb.kind}">${sb.risk} risk</span>` : `<span class="chev">›</span>`}</div></div>
     <div class="sec rise" style="--i:2"><h2>Settings</h2><span class="lbl">this phone</span></div>
     <div class="card rise" style="--i:2">
@@ -63,6 +65,7 @@ export function sheet(kind, ctx) {
         <label>Sex<select name="sex">${[["", "—"], ["female", "Female"], ["male", "Male"]].map(([k, l]) => `<option value="${k}" ${p.sex === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
         ${us ? `<label>Height (ft)<input name="ft" inputmode="numeric" value="${ft}"></label><label>(in)<input name="in" inputmode="numeric" value="${inch}"></label>` : `<label class="full">Height (cm)<input name="cm" inputmode="numeric" value="${p.height ? Math.round(p.height) : ""}"></label>`}
         <label class="full">Weight (${us ? "lb" : "kg"})<input name="wt" inputmode="decimal" value="${p.weight ? Math.round(us ? kg(p.weight) : p.weight) : ""}"></label>
+        <label class="full">Waist (${us ? "in" : "cm"}, optional)<input name="waist" inputmode="decimal" value="${p.waist ? (us ? (p.waist / 2.54).toFixed(1) : Math.round(p.waist)) : ""}" placeholder="at the belly button, after breathing out"></label>
         <button class="cta full" type="submit">Save</button></form>`;
   }
   if (kind === "stopbang") {
@@ -73,6 +76,23 @@ export function sheet(kind, ctx) {
       <form data-form="stopbang">${qs.map(([k, q2]) => `<div class="yn"><p>${q2}</p><div class="seg small inline"><label><input type="radio" name="${k}" value="1" ${a[k] === true ? "checked" : ""}><span>Yes</span></label><label><input type="radio" name="${k}" value="0" ${a[k] === false ? "checked" : ""}><span>No</span></label></div></div>`).join("")}
       <button class="cta" type="submit" style="margin-top:14px">Save answers</button></form>`;
   }
+  if (kind === "riskq") {
+    const a = p.risk ?? {};
+    const qs = [["famhx", "Did a parent, brother or sister have a heart attack, stroke or stent early (a man before 55, a woman before 65)?"],
+      ["inflam", "Do you have rheumatoid arthritis, psoriasis, lupus or HIV?"],
+      ...(p.sex === "female" ? [["women", "Did your menopause start before 40, or did you have preeclampsia or high blood pressure in a pregnancy?"]] : []),
+      ["ancestry", "Is your family background South Asian (for example Indian, Pakistani, Bangladeshi or Sri Lankan)?"]];
+    return `<div class="sh-h"><b>Heart-risk questions</b><button class="back" data-sheetclose>Cancel</button></div>
+      <p>The AHA/ACC guideline lists these as "risk enhancers": each can make real risk higher than the PREVENT number shows. They stay on this phone.</p>
+      <form data-form="riskq">${qs.map(([k, q2]) => `<div class="yn"><p>${q2}</p><div class="seg small inline"><label><input type="radio" name="${k}" value="1" ${a[k] === true ? "checked" : ""}><span>Yes</span></label><label><input type="radio" name="${k}" value="0" ${a[k] === false ? "checked" : ""}><span>No</span></label></div></div>`).join("")}
+      <button class="cta" type="submit" style="margin-top:14px">Save answers</button></form>`;
+  }
+  if (kind === "event") return `<div class="sh-h"><b>Log a change</b><button class="back" data-sheetclose>Cancel</button></div>
+    <p>A medication started or stopped, a new routine, a diet change. Pulse compares the 4 weeks before this date with the 4 weeks after.</p>
+    <form data-form="event" class="fform"><label class="full">What changed<input name="label" maxlength="60" placeholder="e.g. Started amlodipine 5 mg" required></label>
+      <label>Date<input name="date" type="date" value="${new Date().toISOString().slice(0, 10)}" required></label>
+      <label>Kind<select name="kind"><option value="medication">Medication</option><option value="routine">Routine</option><option value="other">Other</option></select></label>
+      <button class="cta full" type="submit">Save</button></form>`;
   if (kind === "pastperiods") return `<div class="sh-h"><b>Your last few periods</b><button class="back" data-sheetclose>${st.obStep != null ? "Skip" : "Cancel"}</button></div>
     <p>The start dates of your last 2–3 periods let Pulse estimate your next one right away. Approximate dates are fine; leave any you don't know blank.</p>
     <form data-form="pastperiods" class="fform">${[1, 2, 3].map((n) => `<label class="full">${n === 1 ? "Most recent start" : n === 2 ? "The one before" : "And before that"}<input name="p${n}" type="date"></label>`).join("")}
