@@ -1,28 +1,28 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260924215242";
-import * as db from "./core/db.js?v=20260924215242";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924215242";
-import { stamp } from "./core/time.js?v=20260924215242";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924215242";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924215242";
-import { scoreDays } from "./analytics/scores.js?v=20260924215242";
-import { buildModel } from "./v3/model.js?v=20260924215242";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924215242";
-import { drill, M } from "./v3/drill.js?v=20260924215242";
-import { today } from "./v3/today.js?v=20260924215242";
-import { night } from "./v3/night.js?v=20260924215242";
-import { trends } from "./v3/trends.js?v=20260924215242";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924215242";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924215242";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924215242";
-import { advSheet } from "./v3/advanced.js?v=20260924215242";
+import { Band } from "./core/ble.js?v=20260924230628";
+import * as db from "./core/db.js?v=20260924230628";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924230628";
+import { stamp } from "./core/time.js?v=20260924230628";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924230628";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924230628";
+import { scoreDays } from "./analytics/scores.js?v=20260924230628";
+import { buildModel } from "./v3/model.js?v=20260924230628";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924230628";
+import { drill, M } from "./v3/drill.js?v=20260924230628";
+import { today } from "./v3/today.js?v=20260924230628";
+import { night } from "./v3/night.js?v=20260924230628";
+import { trends } from "./v3/trends.js?v=20260924230628";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924230628";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924230628";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924230628";
+import { advSheet } from "./v3/advanced.js?v=20260924230628";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
 const PREVIEW = location.pathname.includes("/next/");
 const DB = DEMO ? "jcv8-demo3" : PREVIEW ? "jcv8-next" : db.DB_NAME;
-const TABS = { today: "Today", night: "Night", trends: "Trends", measure: "Measure", profile: "Profile" };
+const TABS = { today: "Live", night: "Sleep", trends: "Trends", measure: "Measure", profile: "Profile" };
 const $ = (s, r = document) => r.querySelector(s);
 
 export const ctx = {
@@ -49,8 +49,7 @@ async function connect({ auto = false } = {}) {
     // requestDevice must run straight from the tap, so nothing is awaited before Band.choose.
     const band = auto ? await Band.reconnect({ log: ctx.log, mac: await db.getSetting(ctx.store, "band_name") }) : await Band.choose({ log: ctx.log });
     if (!band) { ctx.setStatus("off"); return false; }
-    ctx.band = band;
-    band.onDisconnect = () => { ctx.band = null; ctx.busy = false; ctx.setStatus("off"); };
+    adoptBand(band);
     await db.setSetting(ctx.store, "band_name", band.name);
     ctx.setStatus("on", band.name);
     await sync();
@@ -63,6 +62,36 @@ async function connect({ auto = false } = {}) {
     return false;
   }
 }
+/** Keeps a handle on the band so it can be reconnected without the picker (iOS closes the link whenever
+ *  Bluefy goes to the background; the picker needs a tap, but reconnecting a known device doesn't). */
+function adoptBand(band) {
+  ctx.band = band; ctx.lastBand = band;
+  band.onDisconnect = () => {
+    ctx.band = null; ctx.busy = false; ctx.setStatus("off");
+    if (document.visibilityState === "visible") setTimeout(() => reconnectQuietly(), 2500); // dropped while in use: try again
+  };
+}
+let reconnecting = false;
+async function reconnectQuietly() {
+  if (DEMO || ctx.band?.connected || reconnecting || !ctx.profile.onboarded) return false;
+  reconnecting = true;
+  try {
+    for (const wait of [0, 1500, 4000]) {
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      if (document.visibilityState !== "visible") return false;
+      ctx.setStatus("connecting", "Reconnecting…");
+      try {
+        let band = null;
+        if (ctx.lastBand) { await Promise.race([ctx.lastBand.connect(), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000))]); band = ctx.lastBand; }
+        else band = await Band.reconnect({ log: ctx.log, mac: await db.getSetting(ctx.store, "band_name") });
+        if (band?.connected) { adoptBand(band); ctx.setStatus("on", band.name); ctx.log("Reconnected without the picker"); await sync(); return true; }
+      } catch (e) { ctx.log(`Reconnect attempt: ${e.message}`); }
+    }
+    ctx.setStatus("off");
+    return false;
+  } finally { reconnecting = false; }
+}
+
 async function sync() {
   if (!ctx.band?.connected || ctx.busy || st.recRun) return;
   ctx.busy = true;
@@ -284,7 +313,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924215242");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924230628");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -379,6 +408,7 @@ document.addEventListener("click", async (e) => {
   const ex = on("[data-expand]"); if (ex) { const id = ex.dataset.expand; st.open.has(id) ? st.open.delete(id) : st.open.add(id); await stay(); return; }
   const sh = on("[data-sheet]"); if (sh) { showSheet(sh.dataset.sheet); return; }
   const tg = on("[data-tagg]"); if (tg) { st.tagg = tg.dataset.tagg; await stay(); return; }
+  const tt = on("[data-ttopic]"); if (tt) { st.ttopic = tt.dataset.ttopic; await render(); scrollTo(0, 0); return; }
   const o = on("[data-open]"); if (o && M[o.dataset.open]) { openModal(o, "drill", o.dataset.open); if (o.dataset.openview) { st.view = o.dataset.openview; redrawModal(); } }
 });
 
@@ -487,7 +517,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260924215242");
+    const { seedDemo } = await import("./demo.js?v=20260924230628");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },
@@ -511,7 +541,8 @@ async function main() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
     checkForUpdate();
-    if (ctx.band?.connected && !ctx.busy) sync(); else if (!modal) { invalidate(); stay(); }
+    if (ctx.band?.connected && !ctx.busy) sync();
+    else { reconnectQuietly().then((ok) => { if (!ok && !modal) { invalidate(); stay(); } }); }
   });
   checkForUpdate();
   const deep = params.get("open");

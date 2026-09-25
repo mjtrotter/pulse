@@ -1,10 +1,10 @@
 // Trends: the weekly review (this week vs last), trend lines for every metric, and the advanced groups
 // (body clock, heart fitness, illness & apnea watch, energy, blood pressure, metabolic). Each row opens the
 // metric's drill-down.
-import { mean, median, sd } from "./stats.js?v=20260924215242";
-import { M } from "./drill.js?v=20260924215242";
-import { advancedCards } from "./advanced.js?v=20260924215242";
-import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260924215242";
+import { mean, median, sd } from "./stats.js?v=20260924230628";
+import { M } from "./drill.js?v=20260924230628";
+import { topicRows } from "./advanced.js?v=20260924230628";
+import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260924230628";
 
 /** Rows of the weekly review: key, how to aggregate a week, how to format, the noise threshold for calling a change. */
 const WEEK = [
@@ -49,7 +49,14 @@ function weekly() {
     <p class="note">This week = the last 7 nights (and last 7 complete days) vs the 7 before. A change is highlighted only when it's bigger than normal week-to-week swing; green is better, red is worse.</p></div>`;
 }
 
-const TREND_KEYS = [["Night", ["sleep", "recovery", "rhr", "hrv", "breath", "spo2", "temp", "timing"]], ["Day", ["steps", "mvpa", "light", "hrday"]]];
+const TOPICS = [["overview", "Overview"], ["sleep", "Sleep"], ["heart", "Heart"], ["activity", "Activity"], ["body", "Body"]];
+const TOPIC_TRENDS = { sleep: ["sleep", "recovery", "timing", "breath", "spo2", "sri"], heart: ["rhr", "hrv", "hrday", "dip"], activity: ["steps", "mvpa", "light", "ccost"], body: ["temp"] };
+const TOPIC_BLURB = {
+  sleep: "How long, how regular and how restful your nights are, and anything that looks like disturbed breathing.",
+  heart: "Resting heart rate, HRV, fitness and early-warning signs, each against your own history.",
+  activity: "Steps, brisk and light minutes, training load and the energy you burn.",
+  body: "Temperature, labs, biological age and, in female profiles, your cycle.",
+};
 function trendPoints(key) {
   const m = M[key], span = +st.tagg, H0 = D.hist, end = m.day ? H0.length - 2 : H0.length - 1;
   return H0.slice(Math.max(0, end - span + 1), end + 1).filter((h) => m.get(h) != null).length;
@@ -71,18 +78,29 @@ function trendCard(key) {
   return `<div class="card trend tap rise" style="--i:3;--tint:${col}" data-open="${key}" data-openview="time"><div class="tr-h"><span class="t-l"><i></i>${m.title}</span><span class="tr-v"><b>${stat}</b><small>${sub}</small></span></div>${chart}</div>`;
 }
 
+function unlockList(items) {
+  if (!items.length) return "";
+  return `<details class="card rise unlock" style="--i:4;margin-top:22px"><summary><b>${items.length} more unlock${items.length === 1 ? "s" : ""} with more data</b><span class="chev">›</span></summary>${items.map((u) => `<div class="ul-row"><span>${u.label}</span></div><p class="note" style="margin:0 0 8px">${u.need}</p>`).join("")}</details>`;
+}
+function topicView(topic, rowsBy) {
+  const keys = TOPIC_TRENDS[topic] ?? [], haveT = keys.filter((k) => M[k] && trendPoints(k) >= 2), waitT = keys.filter((k) => M[k] && !haveT.includes(k));
+  const rows = rowsBy[topic] ?? [], ready = rows.filter((r) => r.ready), waitR = rows.filter((r) => !r.ready);
+  const unlock = [...waitR.map((r) => ({ label: r.label, need: r.need })), ...(waitT.length ? [{ label: `Trend lines: ${waitT.map((k) => M[k].title).join(", ")}`, need: "Each line appears once there are a few days of data." }] : [])];
+  return `<p class="topic-blurb rise" style="--i:1">${TOPIC_BLURB[topic]}</p>
+    ${ready.length ? `<div class="card rise adv" style="--i:2">${ready.map((r) => r.html).join("")}</div>` : ""}
+    ${haveT.length ? `<div class="sec rise" style="--i:3"><h2>Trend lines</h2><div class="agg inline">${[["30", "30D"], ["90", "90D"], ["365", "1Y"]].map(([k, l]) => `<button data-tagg="${k}" class="${st.tagg === k ? "on" : ""}">${l}</button>`).join("")}</div></div>${haveT.map(trendCard).join("")}` : ""}
+    ${!ready.length && !haveT.length ? `<div class="card rise empty" style="--i:2"><b>Nothing here yet</b><p>These fill in as the band collects more days and nights.</p></div>` : ""}
+    ${unlockList(unlock)}`;
+}
+
 export function trends(ctx) {
-  const adv = advancedCards();
-  const ready = [], waiting = [];
-  for (const [g, keys] of TREND_KEYS) { const have = keys.filter((k) => trendPoints(k) >= 2); ready.push([g, have]); for (const k of keys) if (!have.includes(k)) waiting.push(M[k].title); }
-  const unlock = [...adv.unlock, ...(waiting.length ? [{ label: `Trend lines (${waiting.length})`, need: `${waiting.join(", ")}: each line appears once there are a few days of data in the window.` }] : [])];
-  return `${header("Weekly review · trend lines", "Trends", syncChip(ctx))}
-    <div class="sec rise first" style="--i:1"><h2>This week</h2><span class="lbl">vs the week before</span></div>
-    ${weekly()}
-    ${adv.cards.map((c) => `<div class="sec rise" style="--i:2"><h2>${c.title}</h2><span class="lbl">${esc(c.tag ?? "")}</span></div>${c.html}`).join("")}
-    <div class="sec rise" style="--i:3"><h2>Trend lines</h2><div class="agg inline">${[["30", "30D"], ["90", "90D"], ["365", "1Y"]].map(([k, l]) => `<button data-tagg="${k}" class="${st.tagg === k ? "on" : ""}">${l}</button>`).join("")}</div></div>
-    ${ready.filter(([, keys]) => keys.length).map(([g, keys]) => `<div class="sub-h trend-g">${g}</div>${keys.map(trendCard).join("")}`).join("") || `<p class="note">Trend lines appear once a few days of data are in.</p>`}
-    ${unlock.length ? `<details class="card rise unlock" style="--i:4;margin-top:28px"><summary><b>${unlock.length} more metric${unlock.length === 1 ? "" : "s"} unlock with more data</b><span class="chev">›</span></summary>${unlock.map((u) => `<div class="ul-row"><span>${u.label}</span></div><p class="note" style="margin:0 0 8px">${u.need}</p>`).join("")}</details>` : ""}
-    <p class="note foot">Tap any row for its full detail: the night or day itself, over time, your range, and what affects it.</p>`;
+  const rowsBy = topicRows(), topic = st.ttopic ?? "overview";
+  const seg = `<div class="tseg rise" style="--i:0">${TOPICS.map(([k, l]) => `<button data-ttopic="${k}" class="${topic === k ? "on" : ""}">${l}</button>`).join("")}</div>`;
+  const body = topic === "overview"
+    ? `${rowsBy.watch?.ready ? `<div class="card rise adv" style="--i:1">${rowsBy.watch.html}</div>` : ""}
+       <div class="sec rise first" style="--i:1"><h2>This week</h2><span class="lbl">vs the week before</span></div>${weekly()}
+       <div class="topic-links rise" style="--i:3">${TOPICS.slice(1).map(([k, l]) => { const n = (rowsBy[k] ?? []).filter((r) => r.ready).length + (TOPIC_TRENDS[k] ?? []).filter((x) => M[x] && trendPoints(x) >= 2).length; return `<button class="card tl" data-ttopic="${k}"><b>${l}</b><span>${n ? `${n} metric${n === 1 ? "" : "s"}` : "filling in"}</span><span class="chev">›</span></button>`; }).join("")}</div>`
+    : topicView(topic, rowsBy);
+  return `${header("Weekly review · by topic", "Trends", syncChip(ctx))}${seg}${body}`;
 }
 export { MON };

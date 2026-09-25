@@ -1,9 +1,9 @@
 // Night: last night by default, any earlier night from the strip. Recovery gauge, sleep and deep+REM minis,
 // a plain-language summary, the trigger-based question, and last night's numbers (charts live in drill-downs).
-import { tempC } from "../core/units.js?v=20260924215242";
-import { MIN_USUAL, median, sd } from "./stats.js?v=20260924215242";
-import { expOf, M } from "./drill.js?v=20260924215242";
-import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tUnit, uid, usualOf, vital } from "./kit.js?v=20260924215242";
+import { tempC } from "../core/units.js?v=20260924230628";
+import { MIN_USUAL, median, sd } from "./stats.js?v=20260924230628";
+import { expOf, M } from "./drill.js?v=20260924230628";
+import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tUnit, uid, usualOf, vital } from "./kit.js?v=20260924230628";
 
 const ASK = [{ key: "alcohol", label: "Alcohol" }, { key: "caffeine", label: "Late caffeine" }, { key: "stress", label: "Stress" }, { key: "sick", label: "Feeling ill" }];
 
@@ -110,10 +110,10 @@ function grid() {
 }
 
 export function night(ctx) {
-  if (!D.nights.length) return `${header("Night", "Night", syncChip(ctx))}${empty("No nights yet", "Wear the band to bed and open Pulse in the morning with the band nearby. Last night's sleep, heart rate, HRV and oxygen appear here.")}`;
+  if (!D.nights.length) return `${header("Last night", "Sleep", syncChip(ctx))}${empty("No nights yet", "Wear the band to bed and open Pulse in the morning with the band nearby. Last night's sleep, heart rate, HRV and oxygen appear here.")}`;
   const h = D.last;
   const right = isLatest() || D.i === D.nights[D.nights.length - 1] ? syncChip(ctx) : `<button class="hchip btn" data-night="${D.nights[D.nights.length - 1]}"><span>Latest ›</span></button>`;
-  return `${header(`${nightName(h)} · ${nightDates(h)}`, isLatest() ? "Last night" : "Night", right)}
+  return `${header(`${isLatest() ? "Last night · " : ""}${nightName(h)} · ${nightDates(h)}`, "Sleep", right)}
     ${strip()}
     ${hero()}
     ${prompt()}

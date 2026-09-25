@@ -1,13 +1,13 @@
 // Shared UI state, formatting, SVG helpers and the components every tab uses (header, gauge, minis,
 // montage, tiles, scrubbable charts). Screens are HTML strings; every piece of user-entered text goes
 // through esc().
-import { isUS, tempUnit } from "../core/units.js?v=20260924215242";
-import { clamp, median } from "./stats.js?v=20260924215242";
+import { isUS, tempUnit } from "../core/units.js?v=20260924230628";
+import { clamp, median } from "./stats.js?v=20260924230628";
 
 /** UI state that survives re-renders. */
 export const st = {
   tab: "today", sel: null, view: "now", agg: "90", split: false, showTags: true, hrvTab: "time", ecgStart: 0, horizon: "10",
-  ecgMetric: "rmssd", bpAgg: "30", tagg: "90", allRecs: false, draft: new Set(), open: new Set(), whatIf: { sbp: null, tc: null }, recOpen: null,
+  ecgMetric: "rmssd", bpAgg: "30", tagg: "90", ttopic: "overview", allRecs: false, draft: new Set(), open: new Set(), whatIf: { sbp: null, tc: null }, recOpen: null,
 };
 /** The derived data for the current render (filled by app.js before each render). */
 export const D = {};

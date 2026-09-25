@@ -1,11 +1,11 @@
 // Today: one hero (activity, whose drill-down holds the day's timeline and workouts), the questions Pulse
 // has (only when something triggered them), and the latest reading of every sensor. Charts live in the
 // drill-downs.
-import { tempC } from "../core/units.js?v=20260924215242";
-import { median } from "./stats.js?v=20260924215242";
-import { M, paceFrac } from "./drill.js?v=20260924215242";
-import { workoutPrompts } from "./daymon.js?v=20260924215242";
-import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260924215242";
+import { tempC } from "../core/units.js?v=20260924230628";
+import { median } from "./stats.js?v=20260924230628";
+import { M, paceFrac } from "./drill.js?v=20260924230628";
+import { workoutPrompts } from "./daymon.js?v=20260924230628";
+import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260924230628";
 
 const usualDays = (k, min = 5) => { const v = D.hist.slice(-29, -1).map((h) => h[k]).filter((x) => x != null); return v.length >= min ? median(v) : null; };
 const agoMin = (t) => (Date.now() - new Date(t.replace(" ", "T")).getTime()) / 60e3;
@@ -59,7 +59,7 @@ function nowGrid() {
 
 export function today(ctx) {
   const d = D.latest.d;
-  const head = header(`${FULLDAY[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`, "Today", syncChip(ctx));
+  const head = header(`${FULLDAY[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`, "Live", syncChip(ctx));
   if (!D.T?.hasData && !D.hist.some((h) => h.hasNight || h.steps)) {
     return `${head}${empty("No readings yet", ctx.band?.connected ? "Your band is connected. Readings appear after it records a little data; wear it and sync again in a while." : "Tap Connect above to pair your band. After it's been on your wrist for a bit, sync to see your day here.")}`;
   }

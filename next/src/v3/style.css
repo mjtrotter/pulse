@@ -1,10 +1,10 @@
 /* Pulse v3. Dark + light (follows the phone unless set in Profile). Motion is meaningful and honours Reduce Motion. */
-@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20260924215242") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20260924215242") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20260924215242") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20260924215242") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20260924215242") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20260924215242") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20260924230628") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20260924230628") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20260924230628") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20260924230628") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20260924230628") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20260924230628") format("woff2"); font-display: swap; }
 
 :root, [data-theme="dark"] {
   --bg: #05060a; --card: rgba(255,255,255,.045); --card-hi: rgba(255,255,255,.075); --line: rgba(255,255,255,.08); --grid: rgba(255,255,255,.06);
@@ -693,3 +693,18 @@ html, body { font-size: 16px; }
 .unlock summary::-webkit-details-marker { display: none; }
 .unlock[open] summary { margin-bottom: 10px; }
 .unlock[open] summary .chev { transform: rotate(90deg); }
+
+/* trends topics */
+.tseg { display: flex; gap: 4px; padding: 4px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); margin: 0 0 18px; overflow-x: auto; scrollbar-width: none; backdrop-filter: blur(12px); position: sticky; top: calc(env(safe-area-inset-top) + 8px); z-index: 20; }
+.tseg::-webkit-scrollbar { display: none; }
+.tseg button { flex: 1 0 auto; padding: 9px 12px; border-radius: 12px; font-size: 14px; font-weight: 600; color: var(--ink3); white-space: nowrap; }
+.tseg button.on { background: var(--card-hi); color: var(--ink); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+[data-theme="dark"] .tseg { background: rgba(10,11,18,.72); }
+[data-theme="dark"] .tseg button.on { background: rgba(255,255,255,.1); }
+.topic-blurb { margin: 0 4px 16px; font-size: 15px; line-height: 1.5; color: var(--ink2); }
+.topic-links { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 22px; }
+.topic-links .card + .card { margin-top: 0; }
+.tl { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 16px; position: relative; }
+.tl b { font: 600 18px "Inter Display", "Inter", sans-serif; }
+.tl span:not(.chev) { font-size: 13px; color: var(--ink3); }
+.tl .chev { position: absolute; right: 14px; top: 16px; }

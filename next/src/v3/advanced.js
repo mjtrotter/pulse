@@ -1,22 +1,18 @@
 // Advanced groups on the Trends tab: illness & apnea watch, body clock, heart fitness, energy, the
 // experimental cuff-calibrated BP estimate, and metabolic context from labs. Every row states how solid it
 // is; experimental ones carry a badge. Rows open a drill-down (daily series) or an explanation sheet.
-import { derived } from "../analytics/labs.js?v=20260924215242";
-import { mean, ols } from "./stats.js?v=20260924215242";
-import { ampm, clock, D, esc, sign } from "./kit.js?v=20260924215242";
-import { bmiOf, latestLabs } from "./labsui.js?v=20260924215242";
+import { derived } from "../analytics/labs.js?v=20260924230628";
+import { mean, ols } from "./stats.js?v=20260924230628";
+import { ampm, clock, D, esc, sign } from "./kit.js?v=20260924230628";
+import { bmiOf, latestLabs } from "./labsui.js?v=20260924230628";
 
 const XP = `<span class="xp">experimental</span>`;
-let UNLOCK = [];
 const row = ({ key, drill, sheet, label, value, unit = "", text, xp = false }) => ({
   ready: !(value == null || value === "—"), label, need: text,
   html: `<div class="adv-row" ${drill ? `data-open="${drill}"` : sheet ? `data-advinfo="${sheet}"` : key ? `data-advinfo="${key}"` : ""}><b>${label}${xp ? XP : ""}</b><span class="av">${value}${unit ? `<small>${unit}</small>` : ""}</span>${text ? `<p>${text}</p>` : ""}</div>` });
 const needTxt = (n, need, what) => `${n ?? 0} of ${need} ${what} so far`;
-const card = (rows) => {
-  const ready = rows.filter((r) => typeof r === "string" || r.ready);
-  UNLOCK.push(...rows.filter((r) => typeof r !== "string" && !r.ready).map((r) => ({ label: r.label, need: r.need })));
-  return ready.length ? `<div class="card rise adv" style="--i:2">${ready.map((r) => (typeof r === "string" ? r : r.html)).join("")}</div>` : "";
-};
+const card = (rows) => rows;
+const cta = (html) => ({ ready: true, html });
 
 function watchCard(A) {
   const h = D.latest, iw = A.illness, ap = A.apnea, rows = [];
@@ -25,7 +21,7 @@ function watchCard(A) {
   rows.push(row({ key: "illness", label: "Illness watch", value: nights >= 7 ? lvl : "—", text: nights < 7 ? `Compares each night's heart rate, temperature, breathing and sleep with your own usual; ready after 7 nights (${nights} so far).` : iw?.reasons?.length ? esc(iw.reasons.join("; ")) : "Overnight heart rate, temperature and breathing are within your usual. Two independent detectors (NightSignal and a CuSum change detector) must agree before an alert." }));
   const sb = ap?.stopBang;
   rows.push(sb ? row({ key: "apnea", label: "Sleep apnea screen", value: `${sb.score}<small>/8</small>`, text: `STOP-Bang ${sb.risk} risk${ap.objective?.spo2Low ? "; oxygen dipped low on some nights" : ""}${ap.objective?.cvhr ? "; cyclic heart-rate pattern seen" : ""}. A questionnaire plus supporting signals, not a sleep study.` })
-    : `<div class="adv-row" data-sheet="stopbang"><b>Sleep apnea screen</b><span class="av">›</span><p>Answer 5 quick questions (STOP-Bang). Pulse then adds your overnight oxygen and heart-rate pattern as supporting evidence.</p></div>`);
+    : cta(`<div class="adv-row" data-sheet="stopbang"><b>Sleep apnea screen</b><span class="av">›</span><p>Answer 5 quick questions (STOP-Bang). Pulse then adds your overnight oxygen and heart-rate pattern as supporting evidence.</p></div>`));
   rows.push(row({ drill: "cvhr", label: "Cyclic heart-rate pattern", value: h.cvhrIndex != null ? h.cvhrIndex.toFixed(1) : "—", unit: h.cvhrIndex != null ? "/h" : "", xp: true, text: "Repeating heart-rate surges during sleep, a pattern seen with breathing pauses (Guilleminault 1984). Validated on ECG, not on this band's 5-second wrist heart rate; REM sleep and brief awakenings also cause surges, so the number runs high and isn't comparable to a sleep study. Watch your own trend." }));
   if (h.spo2Min != null) rows.push(row({ drill: "spo2", label: "Lowest oxygen last night", value: `${h.spo2Min}`, unit: "%", text: `${h.spo2Below90 ? `${h.spo2Below90} reading${h.spo2Below90 > 1 ? "s" : ""} under 90%. ` : ""}Spot readings every 10 minutes; they can show a low night but can't count breathing pauses.` }));
   return card(rows);
@@ -87,7 +83,7 @@ function bpCard(A) {
 
 function metabolicCard() {
   const L = latestLabs();
-  if (!Object.keys(L).length) return `<div class="card rise adv" style="--i:2"><div class="adv-row" data-golabs2><b>Metabolic health</b><span class="av">›</span><p>Import a lab PDF in Measure to see insulin resistance (HOMA-IR, TyG), lipid ratios and heart risk, each tied back to your band data.</p></div></div>`;
+  if (!Object.keys(L).length) return [cta(`<div class="adv-row" data-golabs2><b>Labs</b><span class="av">›</span><p>Import a lab PDF in Measure to see insulin resistance (HOMA-IR, TyG), lipid ratios, biological age and heart risk, each tied back to your band data.</p></div>`)];
   const d = derived(Object.fromEntries(Object.entries(L).map(([k, x]) => [k, x.value])), { bmi: bmiOf(D.profile) });
   const pick = ["homa_ir", "tyg", "tg_hdl", "remnant"].map((k) => d.find((z) => z.key === k)).filter(Boolean);
   const rows = pick.map((z) => row({ key: "labs", sheet: "labs", label: z.name, value: z.value, unit: z.unit, text: `${z.band[0]}. ${z.cite}` }));
@@ -95,19 +91,20 @@ function metabolicCard() {
   return card(rows.length ? rows : [row({ sheet: "labs", label: "Labs on file", value: Object.keys(L).length, text: "Add glucose, insulin, triglycerides and cholesterol to see metabolic indices." })]);
 }
 
-/** The advanced groups for the Trends tab. */
-export function advancedCards() {
+/** Rows for each Trends topic (each row: {ready, html, label, need}). */
+export function topicRows() {
   const A = D.advData ?? {};
-  UNLOCK = [];
-  const cards = [
-    { title: "Illness & apnea watch", tag: "early warning", html: watchCard(A) },
-    { title: "Body clock", tag: "timing & rhythm", html: clockCard(A) },
-    { title: "Heart fitness", tag: "trend", html: fitnessCard(A) },
-    { title: "Energy", tag: "estimates", html: energyCard(A) },
-    { title: "Blood pressure estimate", tag: "cuff-calibrated", html: bpCard(A) },
-    { title: "Metabolic", tag: "from labs", html: metabolicCard() },
-  ].filter((c) => c.html);
-  return { cards, unlock: UNLOCK.slice() };
+  const [illness, apnea, cvhr, lowO2] = watchCard(A), [sri, chrono, rhythm, dip] = clockCard(A);
+  const fit = fitnessCard(A), en = energyCard(A), bp = bpCard(A), met = metabolicCard();
+  const byLabel = (rows, l) => rows.find((r) => r.label === l);
+  const heartFit = fit.filter((r) => r.label !== "Training load this week");
+  return {
+    sleep: [sri, chrono, apnea, cvhr, lowO2].filter(Boolean),
+    heart: [illness, ...heartFit, dip, ...bp].filter(Boolean),
+    activity: [byLabel(fit, "Training load this week"), ...en].filter(Boolean),
+    body: [...met, rhythm].filter(Boolean),
+    watch: illness,
+  };
 }
 
 /** Explanation sheets for rows without a daily series. */
