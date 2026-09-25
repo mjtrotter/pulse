@@ -1,10 +1,10 @@
 // Trends: the weekly review (this week vs last), trend lines for every metric, and the advanced groups
 // (body clock, heart fitness, illness & apnea watch, energy, blood pressure, metabolic). Each row opens the
 // metric's drill-down.
-import { mean, median, sd } from "./stats.js?v=20260924214250";
-import { M } from "./drill.js?v=20260924214250";
-import { advancedCards } from "./advanced.js?v=20260924214250";
-import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260924214250";
+import { mean, median, sd } from "./stats.js?v=20260924215242";
+import { M } from "./drill.js?v=20260924215242";
+import { advancedCards } from "./advanced.js?v=20260924215242";
+import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260924215242";
 
 /** Rows of the weekly review: key, how to aggregate a week, how to format, the noise threshold for calling a change. */
 const WEEK = [
@@ -50,6 +50,10 @@ function weekly() {
 }
 
 const TREND_KEYS = [["Night", ["sleep", "recovery", "rhr", "hrv", "breath", "spo2", "temp", "timing"]], ["Day", ["steps", "mvpa", "light", "hrday"]]];
+function trendPoints(key) {
+  const m = M[key], span = +st.tagg, H0 = D.hist, end = m.day ? H0.length - 2 : H0.length - 1;
+  return H0.slice(Math.max(0, end - span + 1), end + 1).filter((h) => m.get(h) != null).length;
+}
 function trendCard(key) {
   const m = M[key], span = +st.tagg, H0 = D.hist, end = m.day ? H0.length - 2 : H0.length - 1, win = H0.slice(Math.max(0, end - span + 1), end + 1);
   const pts = win.map((h, j) => [j, m.get(h)]).filter((p) => p[1] != null);
@@ -68,13 +72,17 @@ function trendCard(key) {
 }
 
 export function trends(ctx) {
-  const adv = { cards: advancedCards() };
+  const adv = advancedCards();
+  const ready = [], waiting = [];
+  for (const [g, keys] of TREND_KEYS) { const have = keys.filter((k) => trendPoints(k) >= 2); ready.push([g, have]); for (const k of keys) if (!have.includes(k)) waiting.push(M[k].title); }
+  const unlock = [...adv.unlock, ...(waiting.length ? [{ label: `Trend lines (${waiting.length})`, need: `${waiting.join(", ")}: each line appears once there are a few days of data in the window.` }] : [])];
   return `${header("Weekly review · trend lines", "Trends", syncChip(ctx))}
     <div class="sec rise first" style="--i:1"><h2>This week</h2><span class="lbl">vs the week before</span></div>
     ${weekly()}
-    ${(adv.cards ?? []).map((c) => `<div class="sec rise" style="--i:2"><h2>${c.title}</h2><span class="lbl">${esc(c.tag ?? "")}</span></div>${c.html}`).join("")}
+    ${adv.cards.map((c) => `<div class="sec rise" style="--i:2"><h2>${c.title}</h2><span class="lbl">${esc(c.tag ?? "")}</span></div>${c.html}`).join("")}
     <div class="sec rise" style="--i:3"><h2>Trend lines</h2><div class="agg inline">${[["30", "30D"], ["90", "90D"], ["365", "1Y"]].map(([k, l]) => `<button data-tagg="${k}" class="${st.tagg === k ? "on" : ""}">${l}</button>`).join("")}</div></div>
-    ${TREND_KEYS.map(([g, keys]) => `<div class="sub-h trend-g">${g}</div>${keys.map(trendCard).join("")}`).join("")}
+    ${ready.filter(([, keys]) => keys.length).map(([g, keys]) => `<div class="sub-h trend-g">${g}</div>${keys.map(trendCard).join("")}`).join("") || `<p class="note">Trend lines appear once a few days of data are in.</p>`}
+    ${unlock.length ? `<details class="card rise unlock" style="--i:4;margin-top:28px"><summary><b>${unlock.length} more metric${unlock.length === 1 ? "" : "s"} unlock with more data</b><span class="chev">›</span></summary>${unlock.map((u) => `<div class="ul-row"><span>${u.label}</span></div><p class="note" style="margin:0 0 8px">${u.need}</p>`).join("")}</details>` : ""}
     <p class="note foot">Tap any row for its full detail: the night or day itself, over time, your range, and what affects it.</p>`;
 }
 export { MON };

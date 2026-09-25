@@ -3,16 +3,16 @@
 //   day:   activity and heart-rate load over D (00:00-24:00)
 //   scores: Sleep / Recovery / Activity (analytics/scores.js), filled by scoreDays()
 // Trends and scores read these, never months of raw 5-s heart rate.
-import { hrmaxTanaka, zonesAndLoad } from "./metrics.js?v=20260924214250";
-import { detectWorkouts } from "./workouts.js?v=20260924214250";
-import { nightSleep } from "./sleep.js?v=20260924214250";
-import { sleepingBandHRV, sleepingHR, sleepingSpO2, sleepingTemp } from "./overnight.js?v=20260924214250";
-import { nightPPI, nightRespiration } from "./ppi.js?v=20260924214250";
-import { median } from "./baseline.js?v=20260924214250";
-import { cvhr } from "./watch.js?v=20260924214250";
-import { cardiacCost, hrByStage } from "./fitness.js?v=20260924214250";
+import { hrmaxTanaka, zonesAndLoad } from "./metrics.js?v=20260924215242";
+import { detectWorkouts } from "./workouts.js?v=20260924215242";
+import { nightSleep } from "./sleep.js?v=20260924215242";
+import { sleepingBandHRV, sleepingHR, sleepingSpO2, sleepingTemp } from "./overnight.js?v=20260924215242";
+import { nightPPI, nightRespiration } from "./ppi.js?v=20260924215242";
+import { median } from "./baseline.js?v=20260924215242";
+import { cvhr } from "./watch.js?v=20260924215242";
+import { cardiacCost, hrByStage } from "./fitness.js?v=20260924215242";
 
-export const SUMMARY_VERSION = 6; // bump to force a rebuild when the definitions change
+export const SUMMARY_VERSION = 7; // bump to force a rebuild when the definitions change
 
 const prevDate = (date) => {
   const d = new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) - 1));
@@ -90,6 +90,7 @@ export function computeDay(data, date, profile = {}, ctx = {}) {
       zone_minutes: load?.zone_minutes ?? null, trimp: load?.trimp ?? null,
       workouts: bouts,
       activity: act.length ? activityStats(act) : null,
+      vitals: dayVitals(data, wake, d1),
       cardiac_cost: compactCost(rest != null && act.length ? cardiacCost(data.hr.filter((r) => r.t >= d0 && r.t <= d1), minuteSteps(act), date, rest) : null),
       temp_hourly: hourlyValues(data.temp.filter((r) => r.t >= d0 && r.t <= d1 && r.c > 25 && r.c < 42).map((r) => [r.t, r.c])),
     };
@@ -115,6 +116,24 @@ export function hourlyMeans(samples) {
   const acc = Array.from({ length: 24 }, () => [0, 0, 999, 0]);
   for (const [t, v] of samples) { const e = acc[+t.slice(11, 13)]; e[0] += v; e[1]++; e[2] = Math.min(e[2], v); e[3] = Math.max(e[3], v); }
   return acc.map(([sum, n, lo, hi]) => (n ? [Math.round((sum / n) * 10) / 10, lo, hi] : null));
+}
+
+/** Daytime spot readings while awake (wake → end of day): oxygen, skin temperature, the band's HRV and
+ *  stress readings, and breathing from clean pulse recordings. */
+function dayVitals(data, from, to) {
+  const inW = (r) => r.t >= from && r.t <= to;
+  const sp = data.spo2.filter((r) => inW(r) && r.pct >= 70 && r.pct <= 100).map((r) => r.pct);
+  const tc = data.temp.filter((r) => inW(r) && r.c > 25 && r.c < 42).map((r) => r.c);
+  const hv = data.hrv.filter((r) => inW(r) && r.hrv_ms > 0 && r.hr > 0);
+  const resp = nightRespiration(data.ppi ?? [], from, to);
+  const r2 = (v) => (v == null ? null : Math.round(v * 100) / 100);
+  return {
+    spo2: sp.length ? { median: median(sp), min: Math.min(...sp), n: sp.length } : null,
+    temp: tc.length ? { median: r2(median(tc)), n: tc.length } : null,
+    hrv: hv.length ? { median: median(hv.map((r) => r.hrv_ms)), n: hv.length } : null,
+    stress: hv.some((r) => r.stress > 0) ? { median: median(hv.filter((r) => r.stress > 0).map((r) => r.stress)), n: hv.filter((r) => r.stress > 0).length } : null,
+    resp: resp ? { rate: r2(resp.rate), n: resp.n } : null,
+  };
 }
 
 /** Experimental cyclic-HR (CVHR) index for the night, without the per-event list. */

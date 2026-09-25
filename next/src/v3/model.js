@@ -1,17 +1,17 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20260924214250";
-import { dayOf, toMs } from "../core/time.js?v=20260924214250";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924214250";
-import { detectWorkouts } from "../analytics/workouts.js?v=20260924214250";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924214250";
-import { stepGoal } from "../analytics/scores.js?v=20260924214250";
-import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924214250";
-import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260924214250";
-import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260924214250";
-import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260924214250";
-import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260924214250";
+import * as db from "../core/db.js?v=20260924215242";
+import { dayOf, toMs } from "../core/time.js?v=20260924215242";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924215242";
+import { detectWorkouts } from "../analytics/workouts.js?v=20260924215242";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924215242";
+import { stepGoal } from "../analytics/scores.js?v=20260924215242";
+import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924215242";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260924215242";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260924215242";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260924215242";
+import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260924215242";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
@@ -119,6 +119,9 @@ function entry(s, date, today) {
   h.lightAct = day?.activity?.light_min ?? null;
   h.trimp = day?.trimp ?? null;
   h.hourlySteps = day?.activity?.hourly ?? null; h.wear = day?.wear_min ?? null;
+  const v = day?.vitals ?? {};
+  h.spo2Day = v.spo2?.median ?? null; h.tempDay = v.temp?.median ?? null; h.hrvDay = v.hrv?.median ?? null; h.stressDay = v.stress?.median ?? null; h.brDay = v.resp?.rate ?? null;
+  h.tempHourly = day?.temp_hourly ?? null;
   return h;
 }
 
@@ -194,7 +197,7 @@ export async function nightDetail(store, h) {
 async function todayData(store, profile, hist, band, workoutTags) {
   const date = dayOf(), now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
   const L = hist.length - 1, h = hist[L];
-  const [hrRows, act] = await Promise.all([db.range(store, "hr", `${date} 00:00:00`, `${date} 23:59:59`), db.range(store, "activity", `${date} 00:00:00`, `${date} 23:59:59`)]);
+  const [hrRows, act, spo2Rows, tempRows, hrvRows, ppiRows] = await Promise.all(["hr", "activity", "spo2", "temp", "hrv_vendor", "ppi"].map((st) => db.range(store, st, `${date} 00:00:00`, `${date} 23:59:59`)));
   const daily = (await db.all(store, "daily")).filter((r) => r.date === date).sort((a, b) => (b.steps ?? 0) - (a.steps ?? 0))[0];
   let wake = h.wakeT && h.wakeT.slice(0, 10) === date ? minOfDay(h.wakeT) : null;
   if (wake == null) { const firstHr = hrRows.find((r) => minOfDay(r.t) >= 300); wake = firstHr ? minOfDay(firstHr.t) : 7 * 60; }
@@ -235,7 +238,19 @@ async function todayData(store, profile, hist, band, workoutTags) {
   const lastData = [lastHr?.t, act.length ? act[act.length - 1].t : null].filter(Boolean).sort().pop();
   const vals = hr.filter((v) => v != null);
   const en = energy(profile, { hrRows: hrRows, minuteSteps: mins, date, rhr: rest, hrmax: hrMax });
-  return { energy: en, wake, now: nowMin, n, hr, stepsMin, sessions, sessionsRaw: raw, brisk, hourly, hrr40, hrr60, hrMax, rest, nowH, steps,
+  // Daytime spot readings (since waking) and the latest of each, for the "Right now" grid.
+  const aw = (t) => minOfDay(t) >= wake;
+  const vit = {
+    spo2: spo2Rows.filter((r) => aw(r.t) && r.pct >= 70 && r.pct <= 100).map((r) => ({ m: minOfDay(r.t), v: r.pct, t: r.t })),
+    temp: tempRows.filter((r) => aw(r.t) && r.c > 25 && r.c < 42).map((r) => ({ m: minOfDay(r.t), v: r.c, t: r.t })),
+    hrv: hrvRows.filter((r) => aw(r.t) && r.hrv_ms > 0 && r.hr > 0).map((r) => ({ m: minOfDay(r.t), v: r.hrv_ms, t: r.t })),
+    stress: hrvRows.filter((r) => aw(r.t) && r.stress > 0 && r.hr > 0).map((r) => ({ m: minOfDay(r.t), v: r.stress, t: r.t })),
+    br: assembleBursts(ppiRows.filter((r) => aw(r.t))).map((b) => ({ m: minOfDay(b.t), v: burstRespiration(b.ppi)?.rate ?? null, t: b.t })).filter((z) => z.v != null),
+  };
+  const latestOf = (k) => (vit[k].length ? vit[k][vit[k].length - 1] : null);
+  const usualTempByHour = Array.from({ length: 24 }, (_, hh) => { const v = hist.slice(Math.max(0, L - 28), L).map((z) => z.tempHourly?.[hh]).filter((x) => x != null); return v.length >= 3 ? median(v) : null; });
+  const lt = latestOf("temp"), usualTempNow = lt ? usualTempByHour[+lt.t.slice(11, 13)] : null;
+  return { energy: en, vit, latest: { spo2: latestOf("spo2"), temp: latestOf("temp"), hrv: latestOf("hrv"), stress: latestOf("stress"), br: latestOf("br") }, usualTempNow, usualTempByHour, wake, now: nowMin, n, hr, stepsMin, sessions, sessionsRaw: raw, brisk, hourly, hrr40, hrr60, hrMax, rest, nowH, steps,
     mvpa: brisk.filter(Boolean).length, light: light.filter(Boolean).length, lightMin: light, moveH, stillNow: run, longestStill: Math.max(run, 0, ...still),
     dayHr: restHr.length >= 10 ? restHr.reduce((a, b) => a + b, 0) / restHr.length : null, hrNow,
     hrLo: vals.length ? Math.min(...vals) : null, hrHi: vals.length ? Math.max(...vals) : null,

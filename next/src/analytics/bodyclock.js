@@ -6,7 +6,7 @@
 // nothing here is a coefficient invented for this module. Pure functions only; every function returns
 // null (not a partial/garbage object) when there isn't enough data, and the non-null results carry
 // their own day/night counts so callers can render "needs N more days" without re-deriving thresholds.
-import { sleepRegularityIndex, circularStats, clockDiff } from "./sleep.js?v=20260924214250";
+import { sleepRegularityIndex, circularStats, clockDiff } from "./sleep.js?v=20260924215242";
 
 const MS_DAY = 86400000;
 const dateUTC = (d) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));

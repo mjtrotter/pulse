@@ -1,8 +1,8 @@
 // Shared UI state, formatting, SVG helpers and the components every tab uses (header, gauge, minis,
 // montage, tiles, scrubbable charts). Screens are HTML strings; every piece of user-entered text goes
 // through esc().
-import { isUS, tempUnit } from "../core/units.js?v=20260924214250";
-import { clamp, median } from "./stats.js?v=20260924214250";
+import { isUS, tempUnit } from "../core/units.js?v=20260924215242";
+import { clamp, median } from "./stats.js?v=20260924215242";
 
 /** UI state that survives re-renders. */
 export const st = {
@@ -110,11 +110,17 @@ export function ringSvg(frac, color) {
   return S(74, 74, `<defs>${glowDef(id, 2.5)}</defs><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${css("--track")}" stroke-width="7"/>
     ${frac != null ? `<circle class="arc" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" transform="rotate(-90 ${c} ${c})" stroke-dasharray="${len.toFixed(1)}" stroke-dashoffset="${len.toFixed(1)}" data-to="${(len * (1 - clamp(frac, 0, 1))).toFixed(1)}" ${glow(id)}/>` : ""}`);
 }
-export function montage(rows, axis, lblL, lblR) {
+export function montage(rows, axis, lblL, lblR, attr = "data-open") {
   return `<div class="card mon rise" style="--i:4">
     <div class="mon-h"><span class="lbl">${lblL}</span><span class="lbl">${lblR}</span></div>
-    ${rows.map(([n, k, body, v]) => `<div class="ch ${k ? "tap" : ""}" ${k ? `data-open="${k}"` : ""}><span class="ch-n">${n}</span>${S(300, 30, body, 'preserveAspectRatio="none"')}<span class="ch-v">${v}</span></div>`).join("")}
+    ${rows.map(([n, k, body, v]) => `<div class="ch ${k ? "tap" : ""}" ${k ? `${attr}="${k}"` : ""}><span class="ch-n">${n}</span>${S(300, 30, body, 'preserveAspectRatio="none"')}<span class="ch-v">${v}</span></div>`).join("")}
     <div class="taxis"><span></span>${S(300, 14, axis)}<span></span></div></div>`;
+}
+/** Compact current-value card for the Right now / Last night grids. */
+export function vital(key, m, label, value, unit, sub, spark = "", i = 4) {
+  if (value == null || value === "—") return "";
+  return `<div class="card vital tap rise" style="--i:${i};--tint:${css(m.color)}" data-open="${key}"><div class="v-h"><i></i>${label}${m.xp ? '<span class="xp">exp</span>' : ""}</div>
+    <div class="v-v">${value}<small>${unit}</small></div><div class="v-s">${sub}</div>${spark ? `<div class="v-sp">${spark}</div>` : ""}</div>`;
 }
 export function tile(key, m, label, value, unit, delta, viz, i) {
   return `<div class="card tile tap rise" style="--i:${i};--tint:${css(m.color)}" data-open="${key}"><div class="t-h"><span class="t-l"><i></i>${label}</span>${q(m.q)}</div>

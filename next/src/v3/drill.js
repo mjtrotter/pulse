@@ -1,10 +1,12 @@
 // The metric catalog and the full-screen drill-down every tile opens: headline value, bands (population,
 // your usual, what your sleep predicts), a plain-language read, then four views: the night/day itself,
 // Over time, Your range and What affects it.
-import { tempC } from "../core/units.js?v=20260924214250";
-import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924214250";
-import { labContext } from "./labsui.js?v=20260924214250";
-import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924214250";
+import { tempC } from "../core/units.js?v=20260924215242";
+import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924215242";
+import { labContext } from "./labsui.js?v=20260924215242";
+import { nightChannels } from "./nightmon.js?v=20260924215242";
+import { dayMontage, workoutPrompts, workoutsList } from "./daymon.js?v=20260924215242";
+import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924215242";
 
 const ALL = ["sleep", "alcohol", "caffeine", "stress", "workout"];
 const decade = (age) => Math.min(70, Math.max(20, Math.floor((age ?? 40) / 10) * 10));
@@ -33,6 +35,12 @@ export const M = {
   dip: { lc: "night-time heart-rate dip", title: "Night-time heart-rate dip", unit: "%", color: "--heart", get: (h) => h.dipPct, f: (v) => v.toFixed(0), better: 1, drivers: ["alcohol", "workout", "sleep"], q: 2, xp: true },
   cvhr: { lc: "cyclic heart-rate index", title: "Cyclic heart-rate pattern", unit: "/h", color: "--breath", get: (h) => h.cvhrIndex, f: (v) => v.toFixed(1), better: -1, drivers: ["alcohol", "sleep"], q: 1, xp: true },
   ccost: { day: true, lc: "cardiac cost of walking", title: "Cardiac cost of walking", unit: "bpm", color: "--heart", get: (h) => h.ccost, today: () => D.latest?.ccost ?? null, frac: () => 1, f: (v) => v.toFixed(0), better: -1, drivers: ["sleep", "alcohol"], q: 2, xp: true },
+  activity: { day: true, lc: "activity", title: "Activity", unit: "%", color: "--act", get: (h) => (h.steps != null ? (100 * h.steps) / D.goal : null), today: () => (D.T ? (100 * D.T.steps) / D.goal : null), frac: paceFrac, f: (v) => Math.round(v).toString(), pop: () => [100, 150], popLbl: () => "Daily goal", better: 1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
+  spo2d: { day: true, lc: "daytime oxygen", title: "Oxygen (daytime)", unit: "%", color: "--spo2", get: (h) => h.spo2Day, today: () => D.T?.latest?.spo2?.v ?? null, frac: () => 1, f: (v) => v.toFixed(0), fa: (v) => v.toFixed(1), pop: () => [95, 100], popLbl: () => "Healthy adults", better: 1, drivers: ["sleep"], q: 3, vit: "spo2" },
+  tempd: { day: true, lc: "skin temperature", title: "Skin temperature (daytime)", unit: "", color: "--temp", get: (h) => (h.tempDay == null ? null : tempC(h.tempDay)), today: () => (D.T?.latest?.temp ? tempC(D.T.latest.temp.v) : null), frac: () => 1, f: (v) => `${v.toFixed(1)}°`, better: 0, drivers: ["alcohol", "stress"], q: 3, vit: "temp" },
+  hrvd: { day: true, lc: "daytime HRV", title: "HRV spot checks (daytime)", unit: "ms", color: "--hrv", get: (h) => h.hrvDay, today: () => D.T?.latest?.hrv?.v ?? null, frac: () => 1, f: (v) => v.toFixed(0), better: 1, drivers: ["sleep", "alcohol", "stress"], q: 2, vit: "hrv" },
+  breathd: { day: true, lc: "daytime breathing rate", title: "Breathing (daytime)", unit: "/min", color: "--breath", get: (h) => h.brDay, today: () => D.T?.latest?.br?.v ?? null, frac: () => 1, f: (v) => v.toFixed(1), better: 0, drivers: ["sleep"], q: 2, vit: "br" },
+  stressd: { day: true, lc: "band stress score", title: "Stress (band score)", unit: "", color: "--watch", get: (h) => h.stressDay, today: () => D.T?.latest?.stress?.v ?? null, frac: () => 1, f: (v) => Math.round(v).toString(), better: -1, drivers: ["sleep", "alcohol", "stress"], q: 1, xp: true, vit: "stress" },
   steps: { day: true, lc: "steps", title: "Steps", unit: "", color: "--steps", get: (h) => h.steps, today: () => D.T?.steps, frac: paceFrac, f: (v) => Math.round(v).toLocaleString(), pop: () => [D.goal, D.goal * 1.5], popLbl: () => "Daily goal", better: 1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
   hrday: { day: true, lc: "daytime heart rate", title: "Daytime heart rate", unit: "bpm", color: "--heart", get: (h) => h.dayHr, today: () => D.T?.dayHr, frac: () => 1, f: (v) => v.toFixed(0), pop: () => [60, 100], popLbl: () => "Adults at rest", better: -1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
   mvpa: { day: true, lc: "brisk minutes", title: "Brisk minutes", unit: "min", color: "--act", get: (h) => h.mvpa, today: () => D.T?.mvpa, frac: paceFrac, f: (v) => Math.round(v).toString(), pop: () => [150 / 7, 300 / 7], popLbl: () => "Guideline pace", better: 1, drivers: ["sleep", "stress"], q: 4 },
@@ -81,6 +89,8 @@ function ctxText(key, B) {
   if (key === "steps") return `${T.steps.toLocaleString()} so far today, ${Math.round((100 * T.steps) / D.goal)}% of ${D.goal.toLocaleString()}.${you ? ` By ${ampm(T.now)} you usually have ${m.f(you[0])}–${m.f(you[1])}.` : ""}${B.rcur != null ? ` Yesterday: <b>${m.f(B.rcur)}</b>.` : ""} Adults ${(D.profile.age ?? 40) >= 60 ? "60+ get most of the benefit by ~7,000" : "under 60 get most of the benefit by ~8,000"} a day (Paluch 2022).`;
   if (key === "hrday") return `Averaging <b>${cur.toFixed(0)} bpm</b> while awake and not exercising${you ? `, ${cur >= you[0] && cur <= you[1] ? "inside" : cur > you[1] ? "above" : "below"} your usual ${m.f(you[0])}–${m.f(you[1])}` : ""}.${T.hrNow ? ` Latest reading: ${Math.round(T.hrNow.bpm)} bpm.` : ""}${T.hrHi ? ` Highest today ${Math.round(T.hrHi)}.` : ""}`;
   if (key === "mvpa") return `<b>${T.mvpa} active minutes</b> today and ${D.week} over the last 7 days, toward the 150 a week of moderate activity adults need (AHA, WHO). Heart-rate sessions count, so strength work isn't missed.`;
+  if (key === "activity") return `<b>${T.steps.toLocaleString()} steps</b> so far, ${Math.round(cur)}% of your ${D.goal.toLocaleString()} goal, with ${T.mvpa} brisk and ${T.light} light minutes${T.sessions.length ? ` and ${T.sessions.length} workout${T.sessions.length > 1 ? "s" : ""}` : ""}.${you ? ` By ${ampm(T.now)} you usually reach ${Math.round(you[0])}–${Math.round(you[1])}%.` : ""}`;
+  if (M[key].vit) { const l = D.T?.latest?.[M[key].vit], ago = l ? Math.round((Date.now() - new Date(l.t.replace(" ", "T")).getTime()) / 60e3) : null; return `Latest reading <b>${m.f(cur)}${m.unit ? ` ${m.unit}` : ""}</b>${ago != null ? ` at ${ampm(+l.t.slice(11, 13) * 60 + +l.t.slice(14, 16))}` : ""}${key === "tempd" && D.T.usualTempNow != null ? `, ${sign(tDelta(D.T.latest.temp.v - D.T.usualTempNow))}° vs your usual for that hour` : ""}.${you ? ` Your usual daytime ${m.lc}: ${fa(m)(B.full.lo)}–${fa(m)(B.full.hi)}.` : " Your usual appears after 5 days."}${key === "hrvd" ? " Daytime HRV swings with posture, movement and stress; the overnight value on the Night tab is the steadier one." : key === "stressd" ? " This is the band's own score; its formula isn't published, so Pulse only tracks it against your own history." : key === "spo2d" ? " Wrist oxygen readings are about ±3–4%; brief lows during movement are common." : ""}`; }
   if (key === "light") return `<b>${T.light} minutes of light walking</b> today (60–99 steps a minute), plus ${T.mvpa} brisk. Any movement counts: light activity is linked with lower mortality even without brisk exercise (Ekelund 2019).`;
   if (key === "moveH") return `You moved (250+ steps) in <b>${T.moveH} of the ${Math.max(0, T.nowH - 7)} hours</b> since 7 AM. Longest still stretch today: ${short(T.longestStill)}. Short walking breaks during long sitting lower blood sugar and insulin after meals (Dunstan 2012).`;
   if (key === "spo2") return `Spot readings through the night${h.spo2N ? ` (${h.spo2N} of them, lowest ${h.spo2Min}%)` : ""}. These can show a low night but can't count breathing pauses; that needs a sleep study or a 1-second oximeter.${usualTxt}`;
@@ -110,6 +120,8 @@ export function drill(key, backLabel) {
     <div class="seg">${views.map(([k, l]) => `<button data-view="${k}" class="${st.view === k ? "on" : ""}">${l}</button>`).join("")}</div>
     ${st.view === "time" || st.view === "range" ? `<div class="agg">${st.view === "time" ? `<button data-split class="ov ${st.split ? "on" : ""}">Weekday vs weekend</button><button data-showtags class="ov ${st.showTags ? "on" : ""}">Tags</button><span class="grow"></span>` : ""}${[["30", "30D"], ["90", "90D"], ["365", "1Y"]].map(([k, l]) => `<button data-agg="${k}" class="${st.agg === k ? "on" : ""}">${l}</button>`).join("")}</div>` : ""}
     <div class="card viz">${renderView(key, B)}</div>
+    ${(key === "recovery" || key === "sleep") && st.view === "now" && D.nt ? `<div class="sec"><h2>Across the night</h2></div>${nightChannels("data-open2")}` : ""}
+    ${key === "activity" && st.view === "now" && D.T?.hasData ? `<div class="sec"><h2>Across the day</h2></div>${dayMontage("data-open2")}<div class="sec"><h2>Workouts</h2><span class="lbl">detected from heart rate</span></div>${workoutPrompts() ? `<div class="stack">${workoutPrompts()}</div>` : ""}<div class="card">${workoutsList()}</div>` : ""}
     ${explain(key)}</div>`;
 }
 
@@ -132,6 +144,12 @@ function explain(key) {
     dip: `How much lower your heart rate runs asleep than awake: (awake average − sleeping average) ÷ awake average. Experimental: blood-pressure research defines "dipping" categories, but no validated cut-off exists for heart rate, so this is tracked against your own trend only.`,
     cvhr: `Experimental. Counts repeating heart-rate surges during sleep (20–90 seconds apart, at least 6 bpm), a pattern that accompanies breathing pauses (Guilleminault 1984; Hayano 2011 validated it on ECG). This band reports heart rate about every 5 seconds from the wrist, which hasn't been validated for this, so treat it as a trend that might prompt a real sleep study.`,
     ccost: `Experimental. Your average heart rate during steady walking (80–120 steps a minute) minus your resting heart rate, per 100 steps a minute. A cadence-only adaptation of the physiological cost index; lower means walking costs your heart less, and it tends to fall as fitness improves.`,
+    activity: `Activity is today's steps as a share of your age-based goal (Paluch 2022: most of the benefit by ~8,000 a day under 60, ~7,000 at 60+). Brisk minutes (100+ steps/min or heart-rate sessions) count toward the 150 a week guideline; light walking (60–99 steps/min) is counted separately. Workouts are detected from heart rate, so strength sessions show up even without steps.`,
+    spo2d: `The band's blood-oxygen spot readings while you're awake. Healthy adults usually read 95–100%. The night value (Night tab) is taken at rest and is the one to trend for breathing problems.`,
+    tempd: `Wrist skin temperature while awake. It follows your daily rhythm (lower by day, higher in the evening and asleep) and your surroundings, so Pulse compares it with your usual for the same hour.`,
+    hrvd: `The band's own HRV reading (RMSSD) from its ~80-second pulse recordings during the day. Daytime values are noisier than overnight ones because posture and movement change them.`,
+    breathd: `Breaths per minute from the rhythm of your pulse in each clean daytime recording. Movement usually spoils daytime recordings, so there may be few of these.`,
+    stressd: `The band's own stress score, reported with each of its HRV readings. The vendor hasn't published how it's computed, so treat it as experimental and compare it only with your own history.`,
     moveH: `An hour counts as moving when it has 250+ steps, about two or three minutes of walking. Hours from 7 AM to 10 PM count.`,
   }[key];
   const nt = D.nt;
@@ -162,6 +180,19 @@ function viewNowDay(key) {
   if (!T?.hasData) return `<p class="note" style="margin:0">Nothing recorded yet today. Sync with your band to see today's detail.</p>`;
   const fut = (H) => `<rect x="${x(T.now).toFixed(1)}" y="0" width="${Math.max(0, W0 - 6 - x(T.now)).toFixed(1)}" height="${H - 18}" fill="${css("--ink3")}" opacity=".06"/>`;
   const taxis = (H) => [6, 9, 12, 15, 18, 21].map((hh) => `<text x="${x(hh * 60)}" y="${H - 4}" text-anchor="middle" class="axis">${hr12(hh)}</text>`).join("");
+  if (key === "activity") return viewNowDay("steps");
+  if (M[key].vit) {
+    const list = (T.vit?.[M[key].vit] ?? []).map((r) => ({ m: r.m, v: key === "tempd" ? tempC(r.v) : r.v }));
+    if (!list.length) return `<p class="note" style="margin:0">No ${M[key].lc} readings yet today.</p>`;
+    const H = 180, vals = list.map((r) => r.v), u = bandsOf(key).full, lo0 = Math.min(...vals, ...(u ? [u.lo] : [])), hi0 = Math.max(...vals, ...(u ? [u.hi] : [])), pad = (hi0 - lo0) * 0.15 || 1, y = sc(lo0 - pad, hi0 + pad, H - 22, 10);
+    let usualLine = "";
+    if (key === "tempd") { const byH = Array.from({ length: 24 }, (_, hh) => median(D.hist.slice(-29, -1).map((z) => z.tempHourly?.[hh]).filter((x) => x != null))); const pts = byH.map((v, hh) => (v == null ? null : [x(hh * 60 + 30), y(tempC(v))])); if (pts.filter(Boolean).length >= 3) usualLine = `<path d="${smoothRuns(pts)}" fill="none" stroke="${css("--ink3")}" stroke-dasharray="4 3" stroke-width="1.5"/>`; }
+    const body = fut(H) + (u && key !== "tempd" ? `<rect x="30" width="${W0 - 36}" y="${y(u.hi)}" height="${Math.max(0, y(u.lo) - y(u.hi))}" fill="${col}" opacity=".1"/>` : "") + usualLine
+      + [lo0, (lo0 + hi0) / 2, hi0].map((v) => `<text x="24" y="${y(v) + 4}" text-anchor="end" class="axis">${fa(M[key])(v).replace("°", "")}</text>`).join("")
+      + (list.length >= 2 ? `<path d="${smooth(list.map((r) => [x(r.m), y(r.v)]), 0.12)}" fill="none" stroke="${col}" stroke-width="1.5" opacity=".6"/>` : "") + list.map((r) => `<circle cx="${x(r.m).toFixed(1)}" cy="${y(r.v).toFixed(1)}" r="3.2" fill="${col}" stroke="${css("--bg")}" stroke-width="1.2"/>`).join("") + taxis(H);
+    return scrubbable(sid, W0, H, body, list.map((r) => [x(r.m), y(r.v), `${ampm(r.m)} · <b>${M[key].f(r.v)}${M[key].unit ? ` ${M[key].unit}` : ""}</b>`]), `Each reading since you woke up.${key === "tempd" && usualLine ? " Dashed: your usual for each hour." : u ? " Shaded: your usual daytime range." : ""}`)
+      + `<div class="stat3"><div><b>${M[key].f(vals[vals.length - 1])}</b><span>latest</span></div><div><b>${fa(M[key])(median(vals))}</b><span>median today</span></div><div><b>${list.length}</b><span>readings today</span></div></div>`;
+  }
   if (key === "steps") {
     const typ = D.typical ?? new Array(24).fill(0);
     const H = 170, bw = (W0 - 36) / 24, max = Math.max(...T.hourly, ...typ, 1), y = sc(0, max, H - 22, 10), xs = (i) => 30 + i * bw;
@@ -371,6 +402,7 @@ function viewAffects(key, B) {
       scatter = `<div class="sub-h">${m.day ? "Last night's sleep vs the next day's" : "Sleep length vs"} ${m.lc}</div>` + scrubbable(sid, W0, H, body, sc2.map((h, i) => [sx(h.sleepH), sy(vy[i]), `${dname(h.d)} · ${hm(h.sleepH)} sleep · <b>${m.f(vy[i])} ${m.unit}</b>${alc(h) ? " · alcohol" : ""}`]), `Each dot is a ${m.day ? "day" : "night"}. <span class="key" style="--k:${css("--bad")}">alcohol-tagged</span>`);
     }
   }
+  if (list.every((d) => d.state === "needs")) return `<p class="lead" style="margin:0">Not enough data yet. Sleep length effects appear after ${MIN_MODEL} nights, and each tag's effect after ${MIN_TAGGED} tagged nights (Pulse asks after unusual nights and on a random 1 in 4 ordinary ones). ${nights.length} night${nights.length === 1 ? "" : "s"} recorded so far.</p>`;
   return `<p class="lead">Pulse has asked about <b>${asked.length}</b> of your ${nights.length} nights so far: every unusual one (${trig}) plus a random 1 in 4 of the ordinary ones, which count 4× so answers don't over-represent bad nights. Late workouts are detected from heart rate.</p>
     <div>${list.map(row).join("")}</div>
     <p class="note">Effect on your ${m.lc} ${m.day ? "the day after a" : "per"} tagged night${m.drivers.includes("sleep") && key !== "sleep" ? ", adjusted for sleep length" : ""}, with 95% ranges. An effect is called clear only when its range stays on one side of zero. From your own data: associations, not proof of cause. Sick nights are left out.</p>

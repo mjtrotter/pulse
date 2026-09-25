@@ -1,22 +1,22 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260924214250";
-import * as db from "./core/db.js?v=20260924214250";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924214250";
-import { stamp } from "./core/time.js?v=20260924214250";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924214250";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924214250";
-import { scoreDays } from "./analytics/scores.js?v=20260924214250";
-import { buildModel } from "./v3/model.js?v=20260924214250";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924214250";
-import { drill, M } from "./v3/drill.js?v=20260924214250";
-import { today } from "./v3/today.js?v=20260924214250";
-import { night } from "./v3/night.js?v=20260924214250";
-import { trends } from "./v3/trends.js?v=20260924214250";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924214250";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924214250";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924214250";
-import { advSheet } from "./v3/advanced.js?v=20260924214250";
+import { Band } from "./core/ble.js?v=20260924215242";
+import * as db from "./core/db.js?v=20260924215242";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924215242";
+import { stamp } from "./core/time.js?v=20260924215242";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924215242";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924215242";
+import { scoreDays } from "./analytics/scores.js?v=20260924215242";
+import { buildModel } from "./v3/model.js?v=20260924215242";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924215242";
+import { drill, M } from "./v3/drill.js?v=20260924215242";
+import { today } from "./v3/today.js?v=20260924215242";
+import { night } from "./v3/night.js?v=20260924215242";
+import { trends } from "./v3/trends.js?v=20260924215242";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924215242";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924215242";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924215242";
+import { advSheet } from "./v3/advanced.js?v=20260924215242";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -284,7 +284,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924214250");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924215242");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -336,16 +336,22 @@ document.addEventListener("click", async (e) => {
   }
   const dr = on("[data-delrec]");
   if (dr) { const sn = D.ecg.find((z) => z.t === dr.dataset.delrec); if (sn && confirm("Delete this recording from this phone?")) { await db.remove(ctx.store, "ecg", [sn.band, sn.t]); invalidate(); closeModal(); await stay(); } return; }
+  // workout tags work on Today and inside the Activity drill-down
+  const wk0 = on("[data-wkind]"), wr0 = on("[data-wrpe]");
+  if (wk0 || wr0) {
+    const p = (wk0 ?? wr0).closest("[data-wprompt]"), start = p.dataset.wprompt, key = [start.slice(0, 10), `workout ${start}`];
+    if (wk0) await db.put(ctx.store, "tags", { date: start.slice(0, 10), tag: `workout ${start}`, type: wk0.dataset.wkind, rpe: null, minutes: +p.dataset.wmin });
+    else { const row = await db.get(ctx.store, "tags", key); if (row) await db.put(ctx.store, "tags", { ...row, rpe: +wr0.dataset.wrpe }); }
+    invalidate();
+    if (modal) { await prepare(); redrawModal(); render(false); } else await stay();
+    return;
+  }
   if (modal) return;
   // prompts
   const d = on("[data-draft]"); if (d) { const k = d.dataset.draft; st.draft.has(k) ? st.draft.delete(k) : st.draft.add(k); d.classList.toggle("on"); const sv = $("[data-answer=save]"); if (sv) sv.disabled = !st.draft.size; return; }
   const an = on("[data-answer]");
   if (an) { const h = D.last; await db.put(ctx.store, "tags", { date: h.date, tag: "night", tags: an.dataset.answer === "none" ? [] : [...st.draft], via: h.trig?.length ? "trigger" : "checkin", t: stamp() }); st.draft.clear(); invalidate(); await stay(); return; }
   const un = on("[data-undo]"); if (un) { await db.remove(ctx.store, "tags", [un.dataset.undo, "night"]); invalidate(); await stay(); return; }
-  const wk = on("[data-wkind]");
-  if (wk) { const p = wk.closest("[data-wprompt]"), start = p.dataset.wprompt; await db.put(ctx.store, "tags", { date: start.slice(0, 10), tag: `workout ${start}`, type: wk.dataset.wkind, rpe: null, minutes: +p.dataset.wmin }); invalidate(); await stay(); return; }
-  const wr = on("[data-wrpe]");
-  if (wr) { const p = wr.closest("[data-wprompt]"), start = p.dataset.wprompt, row = await db.get(ctx.store, "tags", [start.slice(0, 10), `workout ${start}`]); if (row) await db.put(ctx.store, "tags", { ...row, rpe: +wr.dataset.wrpe }); invalidate(); await stay(); return; }
   if (on("[data-gonight]")) { st.sel = null; await setTab("night"); setTimeout(() => $("#prompt")?.scrollIntoView({ behavior: "smooth", block: "center" }), 350); return; }
   const nb = on("[data-night]"); if (nb) { const i = +nb.dataset.night; st.sel = i; st.draft.clear(); await render(); scrollTo(0, 0); return; }
   const tb = on("[data-tab]"); if (tb) { setTab(tb.dataset.tab); return; }
@@ -481,7 +487,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260924214250");
+    const { seedDemo } = await import("./demo.js?v=20260924215242");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

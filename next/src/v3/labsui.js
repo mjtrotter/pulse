@@ -1,10 +1,10 @@
 // Labs: on-phone PDF import (with a review step) or manual entry, the panel over time, what it implies (each
 // paper's own formula), heart risk (AHA PREVENT from labs + home BP), and the lab context other screens use.
-import { derived } from "../analytics/labs.js?v=20260924214250";
-import { prevent } from "../analytics/prevent.js?v=20260924214250";
-import { bpSummary } from "./bp.js?v=20260924214250";
-import { mean } from "./stats.js?v=20260924214250";
-import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20260924214250";
+import { derived } from "../analytics/labs.js?v=20260924215242";
+import { prevent } from "../analytics/prevent.js?v=20260924215242";
+import { bpSummary } from "./bp.js?v=20260924215242";
+import { mean } from "./stats.js?v=20260924215242";
+import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20260924215242";
 
 /** Analytes Pulse tracks (US conventional units). ref = a typical adult range, used only when the report's
  *  own reference range isn't available; the lab's range and flag always win. */

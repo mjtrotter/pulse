@@ -1,9 +1,9 @@
 // Night: last night by default, any earlier night from the strip. Recovery gauge, sleep and deep+REM minis,
-// a plain-language summary, the trigger-based question, the channels across the night, and vitals tiles.
-import { tempC } from "../core/units.js?v=20260924214250";
-import { MIN_USUAL, median, sd } from "./stats.js?v=20260924214250";
-import { expOf, M } from "./drill.js?v=20260924214250";
-import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, montage, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tile, tUnit, uid, usualOf } from "./kit.js?v=20260924214250";
+// a plain-language summary, the trigger-based question, and last night's numbers (charts live in drill-downs).
+import { tempC } from "../core/units.js?v=20260924215242";
+import { MIN_USUAL, median, sd } from "./stats.js?v=20260924215242";
+import { expOf, M } from "./drill.js?v=20260924215242";
+import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tUnit, uid, usualOf, vital } from "./kit.js?v=20260924215242";
 
 const ASK = [{ key: "alcohol", label: "Alcohol" }, { key: "caffeine", label: "Late caffeine" }, { key: "stress", label: "Stress" }, { key: "sick", label: "Feeling ill" }];
 
@@ -73,39 +73,6 @@ function prompt() {
     <div class="chips">${ASK.map((t) => `<button class="chip ${dr.has(t.key) ? "on" : ""}" data-draft="${t.key}">${t.label}</button>`).join("")}</div>
     <div class="p-act"><button class="chip ghost" data-answer="none">Nothing unusual</button><button class="chip solid" data-answer="save" ${dr.size ? "" : "disabled"}>Save</button></div>${auto ? `<div class="p-auto">${auto}</div>` : ""}</div>`;
 }
-function channels() {
-  const nt = D.nt, h = D.last;
-  if (!nt) return "";
-  const W0 = 300, H = 30, N = nt.N, x = sc(0, N, 0, W0), rows = [], lv = { 4: 2, 3: 8, 2: 15, 1: 23 };
-  if (nt.stages) {
-    let stg = "", start = 0;
-    for (let i = 1; i <= nt.stages.length; i++) if (i === nt.stages.length || nt.stages[i] !== nt.stages[start]) { stg += `<rect x="${x(start).toFixed(1)}" y="${lv[nt.stages[start]]}" width="${Math.max(0.8, x(i) - x(start)).toFixed(1)}" height="${nt.stages[start] === 4 ? 4 : 5}" rx="2" fill="${stageColor(nt.stages[start])}"/>`; start = i; }
-    rows.push(["Stages", "sleep", `<g class="fadein" style="--i:0">${stg}</g>`, `${short(h.deep ?? 0)} deep<small>${short(h.rem ?? 0)} REM</small>`]);
-  }
-  const line = (pts, color, i, fill = false) => { const id = uid("m"); const d = smoothRuns(pts); return `<defs>${glowDef(id, 1.8)}</defs>${fill && pts.length > 1 ? `<path d="${smooth(pts.filter(Boolean))}L${pts.filter(Boolean).pop()[0]},${H}L${pts.filter(Boolean)[0][0]},${H}Z" fill="${color}" fill-opacity=".14" class="fadein" style="--i:${i}"/>` : ""}<path class="draw" style="--i:${i};--len:600" d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" ${glow(id)}/>`; };
-  const hv = nt.hr.filter((v) => v != null);
-  if (hv.length) {
-    const lo = Math.min(...hv), hi = Math.max(...hv), yh = sc(lo - 2, hi + 2, H - 2, 2), hrPts = [];
-    for (let i = 0; i < N; i += 8) { const w = nt.hr.slice(i, i + 8).filter((v) => v != null); hrPts.push(w.length ? [x(i + 4), yh(w.reduce((a, b) => a + b, 0) / w.length)] : null); }
-    const lowAt = nt.hr.indexOf(lo);
-    rows.push(["Heart", "rhr", line(hrPts, css("--heart"), 1) + `<circle cx="${x(lowAt)}" cy="${yh(lo)}" r="2.6" fill="${css("--heart")}" class="fadein" style="--i:3"/>`, `low ${Math.round(lo)}<small>at ${clock(nt.onsetMin + lowAt)}</small>`]);
-  }
-  const hb = nt.bursts.filter((b) => b.rmssd != null);
-  if (hb.length) {
-    const vals = hb.map((b) => b.rmssd), yv = sc(Math.min(...vals) - 4, Math.max(...vals) + 4, H - 3, 3);
-    rows.push(["HRV", "hrv", `<g class="fadein" style="--i:2">${hb.map((b) => `<circle cx="${x(b.m).toFixed(1)}" cy="${yv(b.rmssd).toFixed(1)}" r="${b.ok ? 2.3 : 1.7}" fill="${b.ok ? css("--hrv") : "none"}" stroke="${b.ok ? "none" : css("--ink3")}"/>`).join("")}</g>`, `${h.hrv != null ? `${h.hrv.toFixed(0)} ms` : "—"}<small>${nt.good.length}/${nt.bursts.length} usable</small>`]);
-  }
-  const bb = nt.good.filter((b) => b.br != null);
-  if (bb.length >= 2) { const vals = bb.map((b) => b.br), yb = sc(Math.min(...vals) - 1, Math.max(...vals) + 1, H - 3, 3); rows.push(["Breath", "breath", line(bb.map((b) => [x(b.m), yb(b.br)]), css("--breath"), 3), `${h.br != null ? `${h.br.toFixed(1)}/min` : "—"}<small>${bb.length} readings</small>`]); }
-  if (nt.spo2.length) { const ys = sc(Math.min(90, ...nt.spo2.map((r) => r.pct)), 100, H - 2, 2); rows.push(["SpO₂", "spo2", `<g class="fadein" style="--i:4">${nt.spo2.map((r) => `<circle cx="${x(r.m).toFixed(1)}" cy="${ys(r.pct).toFixed(1)}" r="1.9" fill="${css("--spo2")}"/>`).join("")}</g>`, `${h.spo2 != null ? `${Math.round(h.spo2)}%` : "—"}<small>${h.spo2Min != null ? `low ${h.spo2Min}` : ""}</small>`]); }
-  if (nt.temp.length >= 2) { const tv = nt.temp.map((r) => r.c), yt = sc(Math.min(...tv) - 0.2, Math.max(...tv) + 0.2, H - 2, 2); rows.push(["Temp", "temp", line(nt.temp.map((r) => [x(r.m), yt(r.c)]), css("--temp"), 5, true), `${h.tdev != null ? `${sign(tDelta(h.tdev))}°<small>vs usual</small>` : `${tempC(h.tempC ?? tv[0]).toFixed(1)}°<small>${tUnit()}</small>`}`]); }
-  const scr = nt.bursts.filter((b) => b.screened);
-  if (scr.length) rows.push(["Rhythm", "", `<g class="fadein" style="--i:6">${scr.map((b) => `<rect x="${(x(b.m) - 1).toFixed(1)}" y="9" width="2" height="12" rx="1" fill="${css(b.irregular ? "--watch" : "--good")}" opacity=".85"/>`).join("")}</g>`, `${h.rhythm?.flagged ? "irregular" : "regular"}<small>${scr.filter((b) => !b.irregular).length}/${scr.length} checked</small>`]);
-  if (!rows.length) return empty("No readings across this night", "The band was worn but didn't record overnight detail.", 4);
-  const hours = []; for (let t = Math.ceil(nt.onsetMin / 60) * 60; t < nt.onsetMin + N; t += 60) if ((t / 60) % 2 === 0) hours.push(t);
-  const tax = hours.map((t) => `<text x="${x(t - nt.onsetMin)}" y="11" text-anchor="middle" class="axis">${clock(t).replace(":00", "")}</text>`).join("");
-  return `<div class="sec rise" style="--i:4"><h2>Across the night</h2><span class="lbl">${rows.length} channels</span></div>${montage(rows, tax, `${ampm(nt.onsetMin)} – ${ampm(nt.onsetMin + N)}`, "tap a row")}`;
-}
 const spark14 = (k, color) => {
   const W0 = 150, H = 50, vals = D.H.slice(-14).map((z) => z[k]), have = vals.filter((v) => v != null);
   if (have.length < 2) return S(W0, H, have.length ? `<circle cx="${W0 - 5}" cy="25" r="4.5" fill="${color}"/>` : "");
@@ -126,18 +93,19 @@ function vTiming() {
   const W0 = 150, H = 50, hs = D.H.slice(-14), bw = W0 / 14, y = sc(21 * 60, 33 * 60, 3, H - 3), mids = hs.filter((z) => z.hasSleep).map((z) => z.mid), um = mids.length >= 3 ? median(mids) + 1440 : null;
   return S(W0, H, (um != null ? `<line x1="0" x2="${W0}" y1="${y(um)}" y2="${y(um)}" stroke="${css("--ink3")}" stroke-dasharray="3 3" opacity=".7"/>` : "") + hs.map((z, i) => (z.hasSleep ? `<rect x="${(i * bw + 2).toFixed(1)}" y="${y(Math.max(21 * 60, z.onset)).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${Math.max(2, y(Math.min(33 * 60, z.wake)) - y(Math.max(21 * 60, z.onset))).toFixed(1)}" rx="3" fill="${css("--sleep")}" opacity="${i === 13 ? 1 : 0.4}"/>` : "")).join(""));
 }
-function tiles() {
+function grid() {
   const h = D.last, e = expOf("hrv"), ur = usualOf("rhr"), ub = usualOf("br"), have = D.H.slice(0, -1).filter((z) => z.hasNight).length, bl = `building your usual · ${Math.min(have, MIN_USUAL)} of ${MIN_USUAL}`;
   const uh = usualOf("hrv"), tms = D.H.slice(-15, -1).filter((z) => z.hasSleep).map((z) => z.mid), dMid = h.hasSleep && tms.length >= 3 ? h.mid - median(tms) : null;
   const hrvTxt = h.hrv == null ? "no usable recordings" : e ? `${h.hrv >= e.lo && h.hrv <= e.hi ? `<span class="up">within</span>` : `<span class="warn">${h.hrv < e.lo ? "below" : "above"}</span>`} expected ${e.lo.toFixed(0)}–${e.hi.toFixed(0)}` : uh != null ? `usual ${uh.toFixed(0)} ms${h.hrvSrc === "band" ? " · band estimate" : ""}` : `${bl}`;
   const rhrTxt = h.rhr == null ? "no reading" : ur == null ? bl : Math.abs(h.rhr - ur) < 1.5 ? "right at your usual" : h.rhr > ur ? `<span class="dn">▲ ${(h.rhr - ur).toFixed(0)}</span> over your usual` : `<span class="up">▼ ${(ur - h.rhr).toFixed(0)}</span> under your usual`;
-  return `<div class="tiles">
-    ${tile("rhr", M.rhr, "Resting HR", h.rhr != null ? h.rhr.toFixed(1) : "—", "bpm", rhrTxt, spark14("rhr", css("--heart")), 5)}
-    ${tile("hrv", M.hrv, "Overnight HRV", h.hrv != null ? h.hrv.toFixed(0) : "—", "ms", hrvTxt, spark14("hrv", css("--hrv")), 6)}
-    ${tile("breath", M.breath, "Breathing", h.br != null ? h.br.toFixed(1) : "—", "/min", h.br == null ? "needs clean pulse recordings" : ub == null ? bl : h.br - ub >= 1 ? `<span class="warn">${sign(h.br - ub)}</span> vs usual` : `steady · usual ${ub.toFixed(1)}`, spark14("br", css("--breath")), 7)}
-    ${tile("spo2", M.spo2, "Oxygen asleep", h.spo2 != null ? Math.round(h.spo2) : "—", "%", h.spo2 != null ? `lowest ${h.spo2Min}% · ${h.spo2N} readings` : "no readings", vSpo2(), 8)}
-    ${tile("temp", M.temp, "Skin temp", h.tdev != null ? sign(tDelta(h.tdev)) : h.tempC != null ? tempC(h.tempC).toFixed(1) : "—", h.tdev != null ? `°${tUnit().slice(1)} vs usual` : tUnit(), h.trig?.some((t) => t.k === "temp") ? `<span class="warn">2nd warm night</span>` : h.tdev == null ? `usual after 3 nights` : h.tdev >= 0.2 ? `<span class="warn">warm</span> vs usual` : `no warming trend`, vTemp(), 9)}
-    ${tile("timing", M.timing, "Sleep timing", h.hasSleep ? clock(h.onset) : "—", h.hasSleep ? `– ${clock(h.wake)}` : "", dMid == null ? (h.hasSleep ? "usual after 3 nights" : "no sleep record") : Math.abs(dMid) < 20 ? `on your usual schedule${tms.length >= 3 ? ` · ±${Math.round(sd(tms) ?? 0)} min` : ""}` : `<span class="warn">${Math.round(Math.abs(dMid))} min ${dMid > 0 ? "later" : "earlier"}</span> than usual`, vTiming(), 10)}
+  const T0 = [];
+  return `<div class="vitals">
+    ${vital("rhr", M.rhr, "Resting HR", h.rhr != null ? h.rhr.toFixed(1) : "—", "bpm", rhrTxt, spark14("rhr", css("--heart")), 5)}
+    ${vital("hrv", M.hrv, "Overnight HRV", h.hrv != null ? h.hrv.toFixed(0) : "—", "ms", hrvTxt, spark14("hrv", css("--hrv")), 6)}
+    ${vital("breath", M.breath, "Breathing", h.br != null ? h.br.toFixed(1) : "—", "/min", h.br == null ? "needs clean pulse recordings" : ub == null ? bl : h.br - ub >= 1 ? `<span class="warn">${sign(h.br - ub)}</span> vs usual` : `steady · usual ${ub.toFixed(1)}`, spark14("br", css("--breath")), 7)}
+    ${vital("spo2", M.spo2, "Oxygen asleep", h.spo2 != null ? Math.round(h.spo2) : "—", "%", h.spo2 != null ? `lowest ${h.spo2Min}% · ${h.spo2N} readings` : "no readings", vSpo2(), 8)}
+    ${vital("temp", M.temp, "Skin temp", h.tdev != null ? sign(tDelta(h.tdev)) : h.tempC != null ? tempC(h.tempC).toFixed(1) : "—", h.tdev != null ? `°${tUnit().slice(1)} vs usual` : tUnit(), h.trig?.some((t) => t.k === "temp") ? `<span class="warn">2nd warm night</span>` : h.tdev == null ? `usual after 3 nights` : h.tdev >= 0.2 ? `<span class="warn">warm</span> vs usual` : `no warming trend`, vTemp(), 9)}
+    ${vital("timing", M.timing, "Bedtime", h.hasSleep ? clock(h.onset) : "—", "", dMid == null ? (h.hasSleep ? `up ${clock(h.wake)} · usual after 3 nights` : "no sleep record") : Math.abs(dMid) < 20 ? `on your usual schedule${tms.length >= 3 ? ` · ±${Math.round(sd(tms) ?? 0)} min` : ""}` : `<span class="warn">${Math.round(Math.abs(dMid))} min ${dMid > 0 ? "later" : "earlier"}</span> than usual`, vTiming(), 10)}
   </div>`;
 }
 
@@ -149,8 +117,8 @@ export function night(ctx) {
     ${strip()}
     ${hero()}
     ${prompt()}
-    ${channels()}
-    <div class="sec rise" style="--i:5"><h2>Vitals</h2><span class="lbl">vs your usual</span></div>
-    ${tiles()}`;
+    <div class="sec rise" style="--i:4"><h2>${isLatest() ? "Last night" : "That night"}</h2><span class="lbl">vs your usual</span></div>
+    ${grid()}
+    <p class="note foot">Tap Recovery or any reading for the full night: every channel across the night, trends, your range and what affects it.</p>`;
 }
 export { ASK };

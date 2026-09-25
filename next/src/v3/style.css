@@ -1,10 +1,10 @@
 /* Pulse v3. Dark + light (follows the phone unless set in Profile). Motion is meaningful and honours Reduce Motion. */
-@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20260924214250") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20260924214250") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20260924214250") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20260924214250") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20260924214250") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20260924214250") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20260924215242") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20260924215242") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20260924215242") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20260924215242") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20260924215242") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20260924215242") format("woff2"); font-display: swap; }
 
 :root, [data-theme="dark"] {
   --bg: #05060a; --card: rgba(255,255,255,.045); --card-hi: rgba(255,255,255,.075); --line: rgba(255,255,255,.08); --grid: rgba(255,255,255,.06);
@@ -668,3 +668,28 @@ html, body { font-size: 16px; }
 .rv-v em { font-style: normal; font-size: 11px; color: var(--ink3); font-weight: 500; }
 .unk summary { cursor: pointer; font-size: 13.5px; color: var(--ink2); margin-top: 12px; }
 .unk p { font-size: 12.5px; color: var(--ink3); }
+
+/* round 3: current-value grids */
+.vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.vital { padding: 15px 16px 12px; min-height: 132px; display: flex; flex-direction: column;
+  background: radial-gradient(130% 100% at 0% 0%, color-mix(in srgb, var(--tint) 16%, transparent), transparent 62%), var(--card); }
+[data-theme="light"] .vital { background: radial-gradient(130% 100% at 0% 0%, color-mix(in srgb, var(--tint) 10%, transparent), transparent 62%), var(--card); }
+.vital + .vital { margin-top: 0; }
+.v-h { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.v-h i { width: 8px; height: 8px; border-radius: 50%; background: var(--tint); box-shadow: 0 0 10px var(--tint); flex: none; }
+.v-h .xp { margin-left: auto; }
+.v-v { margin-top: 8px; font: 300 36px/1 "Inter Display", sans-serif; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.v-v small { font: 500 13px "Inter", sans-serif; color: var(--ink3); letter-spacing: 0; margin-left: 4px; }
+.v-s { margin-top: 6px; font-size: 12.5px; line-height: 1.4; color: var(--ink2); }
+.v-s .up { color: var(--good); } .v-s .dn { color: var(--bad); } .v-s .warn { color: var(--watch); }
+.v-sp { margin-top: auto; padding-top: 8px; }
+.v-sp svg { width: 100%; height: 26px; display: block; overflow: visible; }
+.stack.first { margin: 0 0 16px; }
+.unlock { font-size: 14px; }
+.unlock .ul-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--grid); color: var(--ink2); }
+.unlock .ul-row:first-of-type { border-top: 0; }
+.unlock .ul-row span:last-child { color: var(--ink3); text-align: right; font-size: 13px; }
+.unlock summary { list-style: none; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 15px; }
+.unlock summary::-webkit-details-marker { display: none; }
+.unlock[open] summary { margin-bottom: 10px; }
+.unlock[open] summary .chev { transform: rotate(90deg); }

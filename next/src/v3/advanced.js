@@ -1,16 +1,22 @@
 // Advanced groups on the Trends tab: illness & apnea watch, body clock, heart fitness, energy, the
 // experimental cuff-calibrated BP estimate, and metabolic context from labs. Every row states how solid it
 // is; experimental ones carry a badge. Rows open a drill-down (daily series) or an explanation sheet.
-import { derived } from "../analytics/labs.js?v=20260924214250";
-import { mean, ols } from "./stats.js?v=20260924214250";
-import { ampm, clock, D, esc, sign } from "./kit.js?v=20260924214250";
-import { bmiOf, latestLabs } from "./labsui.js?v=20260924214250";
+import { derived } from "../analytics/labs.js?v=20260924215242";
+import { mean, ols } from "./stats.js?v=20260924215242";
+import { ampm, clock, D, esc, sign } from "./kit.js?v=20260924215242";
+import { bmiOf, latestLabs } from "./labsui.js?v=20260924215242";
 
 const XP = `<span class="xp">experimental</span>`;
-const row = ({ key, drill, sheet, label, value, unit = "", text, xp = false }) =>
-  `<div class="adv-row" ${drill ? `data-open="${drill}"` : sheet ? `data-advinfo="${sheet}"` : key ? `data-advinfo="${key}"` : ""}><b>${label}${xp ? XP : ""}</b><span class="av">${value}${unit ? `<small>${unit}</small>` : ""}</span>${text ? `<p>${text}</p>` : ""}</div>`;
+let UNLOCK = [];
+const row = ({ key, drill, sheet, label, value, unit = "", text, xp = false }) => ({
+  ready: !(value == null || value === "—"), label, need: text,
+  html: `<div class="adv-row" ${drill ? `data-open="${drill}"` : sheet ? `data-advinfo="${sheet}"` : key ? `data-advinfo="${key}"` : ""}><b>${label}${xp ? XP : ""}</b><span class="av">${value}${unit ? `<small>${unit}</small>` : ""}</span>${text ? `<p>${text}</p>` : ""}</div>` });
 const needTxt = (n, need, what) => `${n ?? 0} of ${need} ${what} so far`;
-const card = (rows) => `<div class="card rise adv" style="--i:2">${rows.join("")}</div>`;
+const card = (rows) => {
+  const ready = rows.filter((r) => typeof r === "string" || r.ready);
+  UNLOCK.push(...rows.filter((r) => typeof r !== "string" && !r.ready).map((r) => ({ label: r.label, need: r.need })));
+  return ready.length ? `<div class="card rise adv" style="--i:2">${ready.map((r) => (typeof r === "string" ? r : r.html)).join("")}</div>` : "";
+};
 
 function watchCard(A) {
   const h = D.latest, iw = A.illness, ap = A.apnea, rows = [];
@@ -92,14 +98,16 @@ function metabolicCard() {
 /** The advanced groups for the Trends tab. */
 export function advancedCards() {
   const A = D.advData ?? {};
-  return [
+  UNLOCK = [];
+  const cards = [
     { title: "Illness & apnea watch", tag: "early warning", html: watchCard(A) },
     { title: "Body clock", tag: "timing & rhythm", html: clockCard(A) },
     { title: "Heart fitness", tag: "trend", html: fitnessCard(A) },
     { title: "Energy", tag: "estimates", html: energyCard(A) },
     { title: "Blood pressure estimate", tag: "cuff-calibrated", html: bpCard(A) },
     { title: "Metabolic", tag: "from labs", html: metabolicCard() },
-  ];
+  ].filter((c) => c.html);
+  return { cards, unlock: UNLOCK.slice() };
 }
 
 /** Explanation sheets for rows without a daily series. */
