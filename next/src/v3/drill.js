@@ -1,12 +1,12 @@
 // The metric catalog and the full-screen drill-down every tile opens: headline value, bands (population,
 // your usual, what your sleep predicts), a plain-language read, then four views: the night/day itself,
 // Over time, Your range and What affects it.
-import { tempC } from "../core/units.js?v=20260924230628";
-import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924230628";
-import { labContext } from "./labsui.js?v=20260924230628";
-import { nightChannels } from "./nightmon.js?v=20260924230628";
-import { dayMontage, workoutPrompts, workoutsList } from "./daymon.js?v=20260924230628";
-import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924230628";
+import { tempC } from "../core/units.js?v=20260924233355";
+import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260924233355";
+import { labContext } from "./labsui.js?v=20260924233355";
+import { nightChannels } from "./nightmon.js?v=20260924233355";
+import { dayMontage, workoutPrompts, workoutsList } from "./daymon.js?v=20260924233355";
+import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260924233355";
 
 const ALL = ["sleep", "alcohol", "caffeine", "stress", "workout"];
 const decade = (age) => Math.min(70, Math.max(20, Math.floor((age ?? 40) / 10) * 10));
@@ -116,6 +116,7 @@ export function drill(key, backLabel) {
     <div class="m-hero"><div class="m-big">${cur == null ? "—" : m.big ? m.big(cur) : `${m.f(cur)}<small>${m.unit}</small>`}</div><div class="m-meta">${meta}</div></div>
     ${bandsHtml}
     <div class="ctx">${ctxText(key, B)}</div>
+    ${D.profile?.sex === "female" && D.last?.luteal && !M[key].day && ["temp", "rhr", "hrv", "recovery"].includes(key) ? `<div class="labctx"><span class="lbl">Cycle</span><p>This was in your luteal phase, when skin temperature normally runs about 0.3 °C higher and resting heart rate about 2 bpm higher (Shilaih 2017, 2018). Pulse doesn't count that rise as a sign of illness.</p></div>` : ""}
     ${labContext(key)}
     <div class="seg">${views.map(([k, l]) => `<button data-view="${k}" class="${st.view === k ? "on" : ""}">${l}</button>`).join("")}</div>
     ${st.view === "time" || st.view === "range" ? `<div class="agg">${st.view === "time" ? `<button data-split class="ov ${st.split ? "on" : ""}">Weekday vs weekend</button><button data-showtags class="ov ${st.showTags ? "on" : ""}">Tags</button><span class="grow"></span>` : ""}${[["30", "30D"], ["90", "90D"], ["365", "1Y"]].map(([k, l]) => `<button data-agg="${k}" class="${st.agg === k ? "on" : ""}">${l}</button>`).join("")}</div>` : ""}

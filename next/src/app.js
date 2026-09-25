@@ -1,22 +1,23 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260924230628";
-import * as db from "./core/db.js?v=20260924230628";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924230628";
-import { stamp } from "./core/time.js?v=20260924230628";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924230628";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924230628";
-import { scoreDays } from "./analytics/scores.js?v=20260924230628";
-import { buildModel } from "./v3/model.js?v=20260924230628";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924230628";
-import { drill, M } from "./v3/drill.js?v=20260924230628";
-import { today } from "./v3/today.js?v=20260924230628";
-import { night } from "./v3/night.js?v=20260924230628";
-import { trends } from "./v3/trends.js?v=20260924230628";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924230628";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924230628";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924230628";
-import { advSheet } from "./v3/advanced.js?v=20260924230628";
+import { Band } from "./core/ble.js?v=20260924233355";
+import * as db from "./core/db.js?v=20260924233355";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260924233355";
+import { stamp } from "./core/time.js?v=20260924233355";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260924233355";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260924233355";
+import { scoreDays } from "./analytics/scores.js?v=20260924233355";
+import { buildModel } from "./v3/model.js?v=20260924233355";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260924233355";
+import { drill, M } from "./v3/drill.js?v=20260924233355";
+import { today } from "./v3/today.js?v=20260924233355";
+import { night } from "./v3/night.js?v=20260924233355";
+import { trends } from "./v3/trends.js?v=20260924233355";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260924233355";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260924233355";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260924233355";
+import { advSheet } from "./v3/advanced.js?v=20260924233355";
+import { cycleView } from "./v3/cycleui.js?v=20260924233355";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -132,7 +133,7 @@ const invalidate = () => { model = null; };
 async function prepare() {
   if (!model) model = await buildModel(ctx.store, ctx.profile);
   const m = model;
-  Object.assign(D, { profile: ctx.profile, hist: m.hist, L: m.L, latest: m.hist[m.L], typical: m.typical, T: m.today, goal: m.goal, band: m.band, ecg: m.ecg, bp: m.bp, labs: m.labs, bandBp: m.bandBp ?? [], advData: m.adv });
+  Object.assign(D, { profile: ctx.profile, hist: m.hist, L: m.L, latest: m.hist[m.L], typical: m.typical, T: m.today, goal: m.goal, band: m.band, ecg: m.ecg, bp: m.bp, labs: m.labs, bandBp: m.bandBp ?? [], advData: m.adv, cycle: m.cycle });
   D.nights = m.hist.map((h, i) => (h.hasNight ? i : -1)).filter((i) => i >= 0);
   D.week = m.hist.slice(-7, -1).reduce((a, h) => a + (h.mvpa ?? 0), 0) + (m.today?.mvpa ?? 0);
   if (nightParam != null) { st.sel = Math.max(0, m.L - nightParam); nightParam = null; }
@@ -196,14 +197,14 @@ async function stay() { const y = scrollY; await render(false); scrollTo(0, y); 
 
 // ---------- modal ----------
 let modal = null, origin = null, openKey = null, modalKind = null;
-function modalHtml() { return modalKind === "rec" ? recView() : modalKind === "live" ? liveView(ctx) : drill(openKey, TABS[st.tab]); }
+function modalHtml() { return modalKind === "rec" ? recView() : modalKind === "live" ? liveView(ctx) : modalKind === "cycle" ? cycleView() : drill(openKey, TABS[st.tab]); }
 function openModal(el, kind, key) {
   origin = el; modalKind = kind; openKey = key; st.view = "now";
   if (kind === "rec") { st.recOpen = key; st.ecgStart = 0; }
   const r = el.getBoundingClientRect();
   modal = document.createElement("div");
   modal.className = "modal";
-  modal.style.setProperty("--mcolor", css(kind === "drill" ? M[key].color : "--heart"));
+  modal.style.setProperty("--mcolor", css(kind === "drill" ? M[key].color : kind === "cycle" ? "--sleep" : "--heart"));
   Object.assign(modal.style, { top: `${r.top}px`, left: `${r.left}px`, width: `${r.width}px`, height: `${r.height}px`, transition: "none" });
   try { modal.innerHTML = modalHtml(); } catch (e) { console.error(e); modal.innerHTML = `<div class="inner"><button class="back" data-close>‹ Back</button><p class="note">${esc(e.message)}</p></div>`; }
   document.body.append(modal);
@@ -306,6 +307,24 @@ async function copyLive() {
   if (!ctx.profile.onboarded) st.obStep = 1;
   await render();
 }
+/** Period logging (settings "periods" = [{start, end}]). */
+async function logPeriod(action, date = null) {
+  const d0 = new Date(), iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = iso(d0), yday = iso(new Date(d0.getTime() - 864e5));
+  if (action === "dismiss") { st.cycleDismiss = D.latest?.date; await stay(); return; }
+  const periods = ((await db.getSetting(ctx.store, "periods")) ?? []).sort((a, b) => (a.start < b.start ? -1 : 1));
+  const open = periods.filter((p) => !p.end).pop();
+  if (action.startsWith("start")) {
+    const start = date ?? (action === "start-yday" ? yday : today);
+    if (!periods.some((p) => Math.abs((new Date(p.start) - new Date(start)) / 864e5) < 10)) periods.push({ start, end: null });
+    toast("Period start logged");
+  } else if (action.startsWith("end")) {
+    const end = date ?? (action === "end-yday" ? yday : today);
+    if (open && end >= open.start) { open.end = end; toast("Period end logged"); } else { toast("No open period to end."); return; }
+  }
+  await db.setSetting(ctx.store, "periods", periods.sort((a, b) => (a.start < b.start ? -1 : 1)));
+  invalidate(); if (!modal) await stay();
+}
 /** Lab PDF → parsed on this phone (pdf.js, loaded only now) → review sheet. */
 function pickLabPdf() {
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/pdf,.pdf";
@@ -313,7 +332,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924230628");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260924233355");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -375,6 +394,8 @@ document.addEventListener("click", async (e) => {
     if (modal) { await prepare(); redrawModal(); render(false); } else await stay();
     return;
   }
+  const pa = on("[data-period]");
+  if (pa) { await logPeriod(pa.dataset.period); if (modal) { invalidate(); await prepare(); redrawModal(); render(false); } return; }
   if (modal) return;
   // prompts
   const d = on("[data-draft]"); if (d) { const k = d.dataset.draft; st.draft.has(k) ? st.draft.delete(k) : st.draft.add(k); d.classList.toggle("on"); const sv = $("[data-answer=save]"); if (sv) sv.disabled = !st.draft.size; return; }
@@ -402,6 +423,7 @@ document.addEventListener("click", async (e) => {
   if (on("[data-import]")) { importData(); return; }
   if (on("[data-rebuild]")) { await rebuild(true); toast("Rebuilt"); await stay(); return; }
   if (on("[data-labpdf]")) { pickLabPdf(); return; }
+  if (on("[data-cycle]") && !modal) { openModal(on("[data-cycle]"), "cycle"); return; }
   const ai = on("[data-advinfo]"); if (ai) { showSheet(`adv:${ai.dataset.advinfo}`); return; }
   if (on("[data-golabs2]")) { await setTab("measure"); setTimeout(() => $("#labs")?.scrollIntoView({ behavior: "smooth" }), 200); return; }
   const dl = on("[data-dellab]"); if (dl) { const labs = ((await db.getSetting(ctx.store, "labs")) ?? []).filter((x) => x.date !== dl.dataset.dellab); await db.setSetting(ctx.store, "labs", labs); invalidate(); await stay(); return; }
@@ -432,6 +454,13 @@ document.addEventListener("submit", async (e) => {
     const a = { ...(ctx.profile.stopbang ?? {}) };
     for (const k of ["snore", "tired", "observed", "pressure", "neck"]) { const r = f.querySelector(`input[name=${k}]:checked`); if (r) a[k] = r.value === "1"; }
     await ctx.setProfile({ ...ctx.profile, stopbang: a }); closeSheet(); await stay(); return;
+  }
+  if (kind === "period") {
+    const periods = ((await db.getSetting(ctx.store, "periods")) ?? []).filter((p) => p.start !== f.start.value);
+    if (f.end.value && f.end.value < f.start.value) { toast("The end date is before the start."); return; }
+    periods.push({ start: f.start.value, end: f.end.value || null });
+    await db.setSetting(ctx.store, "periods", periods.sort((a, b) => (a.start < b.start ? -1 : 1)));
+    closeSheet(); toast("Period logged"); invalidate(); if (modal) { await prepare(); redrawModal(); render(false); } else await stay(); return;
   }
   if (kind === "labreview") {
     const v = {}, meta = {}, dr = st.labDraft ?? {};
@@ -517,7 +546,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260924230628");
+    const { seedDemo } = await import("./demo.js?v=20260924233355");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

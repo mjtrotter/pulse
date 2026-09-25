@@ -1,10 +1,10 @@
 // Trends: the weekly review (this week vs last), trend lines for every metric, and the advanced groups
 // (body clock, heart fitness, illness & apnea watch, energy, blood pressure, metabolic). Each row opens the
 // metric's drill-down.
-import { mean, median, sd } from "./stats.js?v=20260924230628";
-import { M } from "./drill.js?v=20260924230628";
-import { topicRows } from "./advanced.js?v=20260924230628";
-import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260924230628";
+import { mean, median, sd } from "./stats.js?v=20260924233355";
+import { M } from "./drill.js?v=20260924233355";
+import { topicRows } from "./advanced.js?v=20260924233355";
+import { cap1, css, D, esc, header, hm, MON, S, sc, sign, smooth, st, syncChip, tDelta, uid } from "./kit.js?v=20260924233355";
 
 /** Rows of the weekly review: key, how to aggregate a week, how to format, the noise threshold for calling a change. */
 const WEEK = [

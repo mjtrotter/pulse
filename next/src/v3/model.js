@@ -1,17 +1,18 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20260924230628";
-import { dayOf, toMs } from "../core/time.js?v=20260924230628";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924230628";
-import { detectWorkouts } from "../analytics/workouts.js?v=20260924230628";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924230628";
-import { stepGoal } from "../analytics/scores.js?v=20260924230628";
-import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924230628";
-import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260924230628";
-import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260924230628";
-import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260924230628";
-import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260924230628";
+import * as db from "../core/db.js?v=20260924233355";
+import { dayOf, toMs } from "../core/time.js?v=20260924233355";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260924233355";
+import { detectWorkouts } from "../analytics/workouts.js?v=20260924233355";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260924233355";
+import { stepGoal } from "../analytics/scores.js?v=20260924233355";
+import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260924233355";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260924233355";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260924233355";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260924233355";
+import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260924233355";
+import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20260924233355";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
@@ -52,6 +53,20 @@ export async function buildModel(store, profile) {
     } else { h.asked = false; h.w = h.trig.length ? 1 : 1 / ASK_RATE; }
   });
   const workoutTags = new Map(tagRows.filter((r) => r.tag.startsWith("workout ")).map((r) => [r.tag.slice(8), r]));
+  // Cycle (female profiles): logged periods + nightly temperature; the luteal temperature rise is expected,
+  // so it must not count as a "warm nights" illness trigger.
+  let cycle = null;
+  if (profile.sex === "female") {
+    const periods = ((await db.getSetting(store, "periods")) ?? []).filter((p) => p?.start).sort((a, b) => (a.start < b.start ? -1 : 1));
+    const nights = hist.map((h) => ({ date: h.date, temp: h.tempC, rhr: h.rhr }));
+    const status = cycleStatus({ periods, nights, today }), cl = cycleList(periods);
+    cycle = { periods, status, stats: cl.stats, cyclesList: cl.cycles, peri: perimenopause({ periods, profile }), prompt: cyclePrompt({ periods, today, status }), open: periods.some((p) => !p.end) };
+    const starts = periods.map((p) => p.start);
+    for (const sh of detectShifts(nights)) {
+      const nextStart = starts.find((d) => d > sh.date);
+      for (let j = sh.index; j < Math.min(hist.length, sh.index + 17); j++) { if (nextStart && hist[j].date >= nextStart) break; hist[j].trig = (hist[j].trig ?? []).filter((t) => t.k !== "temp"); hist[j].luteal = true; }
+    }
+  }
   // Advanced per-day values the drill-downs can trend.
   const sriBy = new Map(sriSeries(sums).map((x) => [x.date, x.sri]));
   for (const h of hist) {
@@ -85,7 +100,7 @@ export async function buildModel(store, profile) {
     energy: T?.energy ?? null, bmr: mifflin(profile), bp: await fitBp(store, bp, bandBp, ecg),
   };
   return {
-    adv,
+    adv, cycle,
     hist, L, typical, today: T, band, ecg, bp, labs, bandBp, workoutTags, goal: profile.step_goal || stepGoal(profile.age ?? 40),
     /** Minute-level detail for night i (cached). */
     async night(i) {

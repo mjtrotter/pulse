@@ -1,11 +1,12 @@
 // Today: one hero (activity, whose drill-down holds the day's timeline and workouts), the questions Pulse
 // has (only when something triggered them), and the latest reading of every sensor. Charts live in the
 // drill-downs.
-import { tempC } from "../core/units.js?v=20260924230628";
-import { median } from "./stats.js?v=20260924230628";
-import { M, paceFrac } from "./drill.js?v=20260924230628";
-import { workoutPrompts } from "./daymon.js?v=20260924230628";
-import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260924230628";
+import { tempC } from "../core/units.js?v=20260924233355";
+import { median } from "./stats.js?v=20260924233355";
+import { M, paceFrac } from "./drill.js?v=20260924233355";
+import { workoutPrompts } from "./daymon.js?v=20260924233355";
+import { cycleOn, cyclePromptCard, cycleTile } from "./cycleui.js?v=20260924233355";
+import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260924233355";
 
 const usualDays = (k, min = 5) => { const v = D.hist.slice(-29, -1).map((h) => h[k]).filter((x) => x != null); return v.length >= min ? median(v) : null; };
 const agoMin = (t) => (Date.now() - new Date(t.replace(" ", "T")).getTime()) / 60e3;
@@ -33,6 +34,7 @@ function prompts() {
   const h = D.latest;
   if (h.hasNight && (h.trig.length || h.checkIn) && !h.asked) out += `<button class="card inbox rise" style="--i:2" data-gonight><i></i><span><b>One question about last night</b><span>${h.trig.length ? `${cap1(h.trig[0].txt)}.` : "A quick check-in."}</span></span><span class="chev">›</span></button>`;
   out += workoutPrompts();
+  if (cycleOn()) out += cyclePromptCard();
   return out ? `<div class="stack first">${out}</div>` : "";
 }
 /** Today's readings as a tiny dot line across the day (6 AM–10 PM). */
@@ -53,6 +55,7 @@ function nowGrid() {
   if (L.hrv) tiles.push(vital("hrvd", M.hrvd, "HRV", Math.round(L.hrv.v), "ms", `band reading · ${relMin(agoMin(L.hrv.t))}`, sparkDay(T.vit.hrv, css("--hrv"))));
   if (L.br) tiles.push(vital("breathd", M.breathd, "Breathing", L.br.v.toFixed(1), "/min", relMin(agoMin(L.br.t)), sparkDay(T.vit.br, css("--breath"))));
   if (L.stress) tiles.push(vital("stressd", M.stressd, "Stress", Math.round(L.stress.v), "", `band's score · ${relMin(agoMin(L.stress.t))}`, sparkDay(T.vit.stress, css("--watch"))));
+  if (cycleOn()) tiles.push(cycleTile());
   if (!tiles.length) return empty("No readings yet today", "Readings arrive every 10 minutes while you wear the band; sync to bring them in.", 4);
   return `<div class="vitals">${tiles.join("")}</div>`;
 }
