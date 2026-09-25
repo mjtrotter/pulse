@@ -1,264 +1,35 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- The page may load its own files and nothing else. It cannot send data anywhere. -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+        content="default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
-  <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#05060a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pulse</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260924113142">
+  <link rel="manifest" href="manifest.webmanifest?v=20260925173307">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="src/style.css?v=20260924113142">
+  <link rel="preload" href="fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/InterDisplay-Light.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="src/v3/style.css?v=20260925173307">
 </head>
 <body>
-  <svg width="0" height="0" class="sprite" aria-hidden="true">
-    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.2-9.3C1.6 7.8 3.8 4.5 7.2 4.5c2 0 3.6 1.1 4.8 2.7 1.2-1.6 2.8-2.7 4.8-2.7 3.4 0 5.6 3.3 4.4 6.7-1.7 4.7-9.2 9.3-9.2 9.3z"/></symbol>
-    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.2c3.3 4.2 6.5 7.9 6.5 11.3a6.5 6.5 0 0 1-13 0c0-3.4 3.2-7.1 6.5-11.3z"/></symbol>
-    <symbol id="i-temp" viewBox="0 0 24 24"><path d="M14 13.6V5a2 2 0 1 0-4 0v8.6a4 4 0 1 0 4 0z"/></symbol>
-    <symbol id="i-steps" viewBox="0 0 24 24"><path d="M8.5 3c1.9 0 2.9 2.2 2.9 4.7S10.6 12 8.8 12 6 10 6 7.7 6.7 3 8.5 3zM6.4 13.6h4.7l-.3 3.1a2.3 2.3 0 0 1-4.5.1zM15.5 7.5c1.8 0 2.5 2.3 2.5 4.6s-1 4.3-2.8 4.3-2.6-2-2.6-4.3.9-4.6 2.9-4.6zM13 18h4.7l-.3 1.8a2.3 2.3 0 0 1-4.5 0z"/></symbol>
-    <symbol id="i-today" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-cuff" viewBox="0 0 24 24"><path d="M5 6h10a4 4 0 0 1 0 8H9v4H5zM9 10h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-ecg" viewBox="0 0 24 24"><path d="M2 13h5l1.5-4 3 9 2.5-12 2 7h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12c2.5 0 2.5-6 5-6s2.5 12 5 12 2.5-9 5-9 1.5 3 3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
-    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
-    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 8-8M15 7h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-band" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9h4M10 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
-  </svg>
-
-  <header class="topbar">
-    <div class="brand"><img src="icon.svg" alt="" width="28" height="28"><span>Pulse</span></div>
-    <button id="chip" class="chip" type="button"><span class="dot"></span><span id="chipText">Not connected</span></button>
-  </header>
-
-  <p id="demoBanner" class="demo" hidden>Demo data. Nothing here is real.</p>
-  <p id="notice" class="notice" role="alert" hidden></p>
-
-  <main>
-    <!-- TODAY -->
-    <section id="view-today" class="view">
-      <div id="connectPanel" class="card connect">
-        <h2>Connect your band</h2>
-        <p>Keep the band close to your phone. Readings are stored and analysed on this phone only.</p>
-        <button id="connect" class="btn primary" type="button">Connect band</button>
-        <button id="connectAll" class="btn link" type="button">Band not listed? Show all nearby devices</button>
-      </div>
-
-      <div id="syncBar" class="syncbar" hidden>
-        <span id="syncText">Synced</span>
-        <button id="sync" class="btn small" type="button">Sync now</button>
-      </div>
-
-      <article class="card hero">
-        <p class="label">Resting heart rate</p>
-        <p class="hero-value"><span id="rhr">—</span><span class="unit">bpm</span></p>
-        <p class="sub" id="rhrSub">Lowest 30-minute average in the last 24 hours</p>
-      </article>
-
-      <article class="card tile wide-tile" data-metric="hrv">
-        <p class="label"><svg class="ico"><use href="#i-wave"/></svg>Heart rate variability</p>
-        <p class="value"><span id="hrvNow">—</span><span class="unit">ms RMSSD</span></p>
-        <p class="sub" id="hrvSub">Take a 30-second ECG to measure it</p>
-        <button id="goEcg" class="btn small ghost" type="button">Take ECG</button>
-      </article>
-
-      <article class="card tile wide-tile" data-metric="sleep">
-        <p class="label"><svg class="ico"><use href="#i-moon"/></svg>Sleep last night</p>
-        <p class="value"><span id="sleepNow">—</span></p>
-        <p class="sub" id="sleepSub">Wear the band overnight, then sync</p>
-      </article>
-
-      <div class="tiles">
-        <article class="card tile" data-metric="hr">
-          <p class="label"><svg class="ico"><use href="#i-heart"/></svg>Heart rate</p>
-          <p class="value"><span id="hrNow">—</span><span class="unit">bpm</span></p>
-          <p class="sub" id="hrNowSub">No readings yet</p>
-          <button id="live" class="btn small ghost" type="button" disabled>Live</button>
-        </article>
-        <article class="card tile" data-metric="spo2">
-          <p class="label"><svg class="ico"><use href="#i-drop"/></svg>Blood oxygen</p>
-          <p class="value"><span id="spo2">—</span><span class="unit">%</span></p>
-          <p class="sub" id="spo2Sub">Measured automatically by the band</p>
-        </article>
-        <article class="card tile" data-metric="temp">
-          <p class="label"><svg class="ico"><use href="#i-temp"/></svg>Skin temperature</p>
-          <p class="value"><span id="temp">—</span><span class="unit">°C</span></p>
-          <p class="sub" id="tempSub">Measured automatically by the band</p>
-        </article>
-        <article class="card tile" data-metric="steps">
-          <p class="label"><svg class="ico"><use href="#i-steps"/></svg>Steps today</p>
-          <p class="value"><span id="steps">—</span></p>
-          <p class="sub" id="stepsSub">Updates when you sync</p>
-        </article>
-      </div>
-
-      <div class="section-head">
-        <h2>Heart rate</h2>
-        <div class="segmented" role="group" aria-label="Time range">
-          <button type="button" data-range="6" >6H</button>
-          <button type="button" data-range="24" class="on">24H</button>
-          <button type="button" data-range="168">7D</button>
-        </div>
-      </div>
-      <article class="card chart-card">
-        <div id="hrChart" class="chart" data-metric="hr"></div>
-        <div id="chartTip" class="tip" hidden></div>
-        <button id="tableToggle" class="btn link" type="button">Show as table</button>
-        <div id="hrTable" class="table-wrap" hidden></div>
-      </article>
-    </section>
-
-    <!-- TRENDS -->
-    <section id="view-trends" class="view" hidden>
-      <article class="card">
-        <h2>Sleep</h2>
-        <p class="sub" id="sleepHead"></p>
-        <div id="sleepBar" class="stagebar"></div>
-        <div id="sleepLegend" class="legend"></div>
-        <div id="hypnogram" class="chart small"></div>
-        <p class="sub" id="sleepNote"></p>
-      </article>
-      <article class="card">
-        <h2>Heart rate last night</h2>
-        <dl class="stats" id="nightStats"></dl>
-        <p class="sub" id="nightNote"></p>
-      </article>
-      <article class="card">
-        <h2>Daily rhythm</h2>
-        <p class="sub" id="rhythmText"></p>
-        <div id="rhythmChart" class="chart small"></div>
-      </article>
-      <article class="card">
-        <h2>Heart-rate zones today</h2>
-        <div id="zones" class="zones"></div>
-        <p class="sub" id="zonesNote"></p>
-      </article>
-      <article class="card">
-        <h2>Skin temperature at night</h2>
-        <div id="tempNights" class="chart small"></div>
-        <p class="sub" id="tempNightsNote"></p>
-      </article>
-      <article class="card">
-        <h2>Workouts, last 7 days</h2>
-        <div id="workoutList" class="table-wrap"></div>
-        <p class="sub" id="workoutNote"></p>
-      </article>
-      <article class="card">
-        <h2>Resting heart rate by day</h2>
-        <div id="rhrDays" class="chart small"></div>
-        <p class="sub" id="rhrDaysNote"></p>
-      </article>
-      <article class="card">
-        <h2>HRV from your ECGs</h2>
-        <div id="hrvTrend" class="chart small"></div>
-        <p class="sub" id="hrvTrendNote"></p>
-      </article>
-      <p class="fineprint">Each figure is computed on this phone from your band's raw readings. Methods and sources are in the project notes.</p>
-    </section>
-
-    <!-- ECG -->
-    <section id="view-ecg" class="view" hidden>
-      <article class="card">
-        <h2>ECG spot check</h2>
-        <ol class="steps">
-          <li>Sit down and rest your forearm on a table.</li>
-          <li>Touch the <strong>silver plate on the outside of the band</strong> with the index finger of your other hand.</li>
-          <li>Hold still and stay quiet for 30 seconds.</li>
-        </ol>
-        <button id="ecgStart" class="btn primary full" type="button" disabled>Start ECG</button>
-        <p class="sub" id="ecgStatus">Connect your band first (Today tab).</p>
-      </article>
-      <article class="card chart-card" id="ecgLive" hidden>
-        <div class="ecg-head"><span id="ecgClock">0 s</span><span id="ecgBpm"></span></div>
-        <canvas id="ecgCanvas" class="ecg-canvas" height="180"></canvas>
-      </article>
-      <article class="card" id="ecgResult" hidden>
-        <h2 id="ecgResultTitle">Result</h2>
-        <dl class="stats" id="ecgStats"></dl>
-        <p class="sub" id="ecgNote"></p>
-      </article>
-      <article class="card">
-        <h2>Past recordings</h2>
-        <div id="ecgList" class="table-wrap"></div>
-      </article>
-    </section>
-
-    <!-- CALIBRATE -->
-    <section id="view-calibrate" class="view" hidden>
-      <article class="card">
-        <h2>Reference readings</h2>
-        <p class="sub">Take a reading with an arm cuff or fingertip oximeter while wearing the band. Each one is matched
-          to the band's nearest reading, so you get your own measured error instead of a generic claim.</p>
-        <form id="pairForm" class="form">
-          <label>Systolic<input id="refSys" inputmode="numeric" pattern="[0-9]*" placeholder="120" autocomplete="off"></label>
-          <label>Diastolic<input id="refDia" inputmode="numeric" pattern="[0-9]*" placeholder="80" autocomplete="off"></label>
-          <label>Pulse<input id="refHr" inputmode="numeric" pattern="[0-9]*" placeholder="62" autocomplete="off"></label>
-          <label>SpO₂<input id="refSpo2" inputmode="numeric" pattern="[0-9]*" placeholder="98" autocomplete="off"></label>
-          <label class="full">Note<input id="refNote" placeholder="Seated 5 min, left arm" autocomplete="off"></label>
-          <button type="submit" class="btn primary full">Save reading</button>
-        </form>
-      </article>
-      <article class="card">
-        <h2>Band vs reference</h2>
-        <dl id="calStats" class="stats"></dl>
-        <p class="sub" id="calNote"></p>
-      </article>
-      <article class="card">
-        <h2>Logged readings</h2>
-        <div id="pairList" class="table-wrap"></div>
-      </article>
-    </section>
-
-    <!-- BAND -->
-    <section id="view-band" class="view" hidden>
-      <article class="card">
-        <h2>Band</h2>
-        <dl id="bandInfo" class="stats"><dt>Status</dt><dd>Not connected</dd></dl>
-        <div class="meter" id="battery" hidden><div class="fill"></div></div>
-        <div class="row">
-          <button id="disconnect" class="btn" type="button" disabled>Disconnect</button>
-          <button id="export" class="btn" type="button">Export my data</button>
-        </div>
-      </article>
-      <article class="card">
-        <h2>Profile</h2>
-        <p class="sub">Used for heart-rate zones and training load. Stays on this phone.</p>
-        <form id="profileForm" class="form">
-          <label>Age<input id="pAge" inputmode="numeric" pattern="[0-9]*" placeholder="40" autocomplete="off"></label>
-          <label>Sex<select id="pSex"><option value="">Choose</option><option value="male">Male</option><option value="female">Female</option></select></label>
-          <label>Height (cm)<input id="pHeight" inputmode="numeric" pattern="[0-9]*" placeholder="175" autocomplete="off"></label>
-          <label>Weight (kg)<input id="pWeight" inputmode="decimal" placeholder="75" autocomplete="off"></label>
-          <label class="full">Max heart rate (optional)<input id="pHrmax" inputmode="numeric" pattern="[0-9]*" placeholder="From a hard effort; otherwise estimated from age" autocomplete="off"></label>
-          <button type="submit" class="btn full">Save profile</button>
-        </form>
-        <p class="sub" id="profileNote"></p>
-      </article>
-      <article class="card">
-        <h2>Stored on this phone</h2>
-        <dl id="storeInfo" class="stats"></dl>
-      </article>
-      <article class="card">
-        <h2>Connection log</h2>
-        <ol id="log" class="log"></ol>
-      </article>
-      <p class="fineprint">Pulse keeps everything on this device. The page is locked so it cannot send data anywhere.
-        Export creates a file you control.</p>
-    </section>
-  </main>
-
-  <nav class="tabbar" aria-label="Sections">
-    <button type="button" data-view="today" class="on"><svg><use href="#i-today"/></svg>Today</button>
-    <button type="button" data-view="trends"><svg><use href="#i-trend"/></svg>Trends</button>
-    <button type="button" data-view="ecg"><svg><use href="#i-ecg"/></svg>ECG</button>
-    <button type="button" data-view="calibrate"><svg><use href="#i-cuff"/></svg>Calibrate</button>
-    <button type="button" data-view="band"><svg><use href="#i-band"/></svg>Band</button>
+  <div class="aurora" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i></div>
+  <main id="app" class="wrap"></main>
+  <nav id="tabbar" class="tabbar" aria-label="Sections" hidden>
+    <button type="button" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></svg>Live</button>
+    <button type="button" data-tab="night"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>Sleep</button>
+    <button type="button" data-tab="trends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19h18M5 15l4-5 4 3 6-7"/><circle cx="19" cy="6" r="1.4"/></svg>Trends</button>
+    <button type="button" data-tab="measure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13h4l2-5 3 10 3-13 2 8h6"/></svg>Measure</button>
+    <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profile</button>
   </nav>
-
-  <script type="module" src="src/app.js?v=20260924113142"></script>
+  <script type="module" src="src/app.js?v=20260925173307"></script>
 </body>
 </html>

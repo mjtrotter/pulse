@@ -1,8 +1,8 @@
 // Web Bluetooth client for one JCV8 band (Chrome on Mac/Android, Bluefy on iPhone).
 // Notifications are buffered; collect() drains them with overall and idle timeouts,
 // mirroring Band.collect in jcv8.py and BandClient.collect in Swift.
-import { decodeEcgPacket } from "../analytics/ecg.js?v=20260924113142";
-import { Cmd, decodeInfo, HISTORY, HistoryPage, NAME_PREFIX, NOTIFY, packet, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260924113142";
+import { decodeEcgPacket } from "../analytics/ecg.js?v=20260925173307";
+import { Cmd, decodeInfo, HISTORY, HistoryPage, isBandName, NAME_PREFIXES, namePacket, notifyPacket, NOTIFY, packet, recordTime, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260925173307";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -12,14 +12,38 @@ export class Band {
   static async choose({ all = false, log = () => {} } = {}) {
     if (!navigator.bluetooth) throw new Error("This browser has no Bluetooth. On iPhone, open this page in Bluefy.");
     // requestDevice must run straight from the tap (user activation), so nothing is awaited before it.
-    log(all ? "Opening picker (all nearby devices)" : `Opening picker (names starting ${NAME_PREFIX})`);
+    log(all ? "Opening picker (all nearby devices)" : `Opening picker (names starting ${NAME_PREFIXES.join(" or ")})`);
     const device = await navigator.bluetooth.requestDevice(all
       ? { acceptAllDevices: true, optionalServices: [SERVICE] }
-      : { filters: [{ namePrefix: NAME_PREFIX }, { namePrefix: "V5" }], optionalServices: [SERVICE] });
+      : { filters: NAME_PREFIXES.map((namePrefix) => ({ namePrefix })), optionalServices: [SERVICE] });
     log(`Picked ${device.name ?? "unnamed device"}`);
     const band = new Band(device, log);
     await band.connect();
     return band;
+  }
+
+  /** Reconnects without the picker to a band this browser already has permission for
+   *  (navigator.bluetooth.getDevices: Chrome/Android; absent in some engines → null). */
+  static async reconnect({ log = () => {}, mac = null, timeoutMs = 8000 } = {}) {
+    if (!navigator.bluetooth?.getDevices) return null;
+    const devices = await navigator.bluetooth.getDevices();
+    // With a band on record, only that band: this browser may also remember a family member's band nearby.
+    const dev = mac ? devices.find((d) => d.name === mac) : devices.find((d) => isBandName(d.name));
+    if (!dev) return null;
+    log(`Reconnecting to ${dev.name}`);
+    const band = new Band(dev, log);
+    const attempt = (async () => {
+      if (dev.watchAdvertisements) {
+        // Chrome only connects to a remembered device once it has seen it advertise.
+        const seen = new Promise((ok) => dev.addEventListener("advertisementreceived", ok, { once: true }));
+        await dev.watchAdvertisements().catch(() => {});
+        await Promise.race([seen, sleep(timeoutMs - 1500)]);
+      }
+      await band.connect();
+      return band;
+    })();
+    return Promise.race([attempt, sleep(timeoutMs).then(() => { throw new Error("reconnect timed out"); })])
+      .catch((e) => { log(`Reconnect skipped: ${e.message}`); try { dev.gatt?.disconnect(); } catch {} return null; });
   }
 
   constructor(device, log = () => {}) {
@@ -99,8 +123,10 @@ export class Band {
     await this.collect(1);
   }
 
-  /** Full history for one kind: mode 0 = newest first, 2 = next page. Never 0x99 (delete). */
-  async history(kind, maxPages = 50) {
+  /** History for one kind, newest first (verified: 500 records per page, newest first).
+   *  mode 0 = start, 2 = next page. Never 0x99 (delete). With `since` ("YYYY-MM-DD hh:mm:ss"),
+   *  stops paging once a page reaches records at or before `since` (the band ignores resume dates). */
+  async history(kind, { since = null, maxPages = 60 } = {}) {
     const records = [];
     let mode = 0x00;
     for (let i = 0; i < maxPages; i++) {
@@ -111,9 +137,31 @@ export class Band {
       const recs = page.records;
       records.push(...recs);
       if (page.done || !recs.length) break;
+      if (since && recs.some((c) => { const t = recordTime(kind, c); return t !== null && t <= since; })) break;
       mode = 0x02;
     }
     return records;
+  }
+
+  /** Rename the band (it will advertise "V5 <name>"). */
+  async rename(name) {
+    this.inbox.length = 0;
+    await this.write(namePacket(name));
+    return this.collect(1.5);
+  }
+
+  /** Make the band buzz and show a short message (ASCII). Resolves with the band's replies. */
+  async buzz(message) {
+    this.inbox.length = 0;
+    await this.write(notifyPacket(message));
+    return this.collect(2);
+  }
+
+  /** Send one settings command and return the replies (for 2A/2B/34/02). */
+  async command(bytes, wait = 1.5) {
+    this.inbox.length = 0;
+    await this.write(bytes);
+    return this.collect(wait);
   }
 
   /** ECG spot check (vendor buildStartEcgCommand): 07 01, then 28 04 01 00 FF FF. The band streams
