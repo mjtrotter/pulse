@@ -1,15 +1,15 @@
 // Context the headline numbers can't carry on their own: the guideline's risk enhancers and the kidney grid next
 // to PREVENT, home-BP detail next to the cuff chart, before/after around a change the person logged, tier chips,
 // and which inputs moved a lab index. The math lives in analytics/ (riskctx, homebp, change, body, tiers).
-import { egfrAt, kdigo, KDIGO_RISK, lpaStatus, riskEnhancers, uacrAt } from "../analytics/riskctx.js?v=20260925173307";
-import { homeBP, ppNote, protocolWeek } from "../analytics/homebp.js?v=20260925173307";
-import { attributeChange, beforeAfter, POWER_FORMS, verdict } from "../analytics/change.js?v=20260925173307";
-import { bodyIndices } from "../analytics/body.js?v=20260925173307";
-import { tierOf } from "../analytics/tiers.js?v=20260925173307";
-import { dayOf, toMs } from "../core/time.js?v=20260925173307";
-import { isUS } from "../core/units.js?v=20260925173307";
-import { bpSummary } from "./bp.js?v=20260925173307";
-import { css, D, esc, hm, MON, S, sign, st } from "./kit.js?v=20260925173307";
+import { egfrAt, kdigo, KDIGO_RISK, lpaStatus, riskEnhancers, uacrAt } from "../analytics/riskctx.js?v=20260925225520";
+import { homeBP, ppNote, protocolWeek } from "../analytics/homebp.js?v=20260925225520";
+import { attributeChange, beforeAfter, POWER_FORMS, verdict } from "../analytics/change.js?v=20260925225520";
+import { bodyIndices } from "../analytics/body.js?v=20260925225520";
+import { tierOf } from "../analytics/tiers.js?v=20260925225520";
+import { dayOf, toMs } from "../core/time.js?v=20260925225520";
+import { isUS } from "../core/units.js?v=20260925225520";
+import { bpSummary } from "./bp.js?v=20260925225520";
+import { css, D, esc, hm, MON, S, sign, st } from "./kit.js?v=20260925225520";
 
 const shortDate = (date) => `${MON[+date.slice(5, 7) - 1]} ${+date.slice(8, 10)}`;
 const longDate = (date) => `${shortDate(date)}, ${date.slice(0, 4)}`;

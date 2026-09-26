@@ -1,8 +1,8 @@
 // Web Bluetooth client for one JCV8 band (Chrome on Mac/Android, Bluefy on iPhone).
 // Notifications are buffered; collect() drains them with overall and idle timeouts,
 // mirroring Band.collect in jcv8.py and BandClient.collect in Swift.
-import { decodeEcgPacket } from "../analytics/ecg.js?v=20260925173307";
-import { Cmd, decodeInfo, HISTORY, HistoryPage, isBandName, NAME_PREFIXES, namePacket, notifyPacket, NOTIFY, packet, recordTime, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260925173307";
+import { decodeEcgPacket } from "../analytics/ecg.js?v=20260925225520";
+import { Cmd, decodeInfo, HISTORY, HistoryPage, isBandName, NAME_PREFIXES, namePacket, notifyPacket, NOTIFY, packet, recordTime, SERVICE, setTimePacket, WRITE } from "./protocol.js?v=20260925225520";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -24,11 +24,14 @@ export class Band {
 
   /** Reconnects without the picker to a band this browser already has permission for
    *  (navigator.bluetooth.getDevices: Chrome/Android; absent in some engines → null). */
-  static async reconnect({ log = () => {}, mac = null, timeoutMs = 8000 } = {}) {
+  static async reconnect({ log = () => {}, mac = null, id = null, timeoutMs = 8000 } = {}) {
     if (!navigator.bluetooth?.getDevices) return null;
     const devices = await navigator.bluetooth.getDevices();
-    // With a band on record, only that band: this browser may also remember a family member's band nearby.
-    const dev = mac ? devices.find((d) => d.name === mac) : devices.find((d) => isBandName(d.name));
+    // Only the band this phone paired. By id first: names are unreliable, because phones keep showing a band's old
+    // name until they reconnect to it, so a handed-down band can look identical to its replacement. By name for
+    // phones paired before ids were stored; with nothing on record, the one remembered band.
+    const bands = devices.filter((d) => isBandName(d.name));
+    const dev = id ? devices.find((d) => d.id === id) : mac ? devices.find((d) => d.name === mac) : bands.length === 1 ? bands[0] : null;
     if (!dev) return null;
     log(`Reconnecting to ${dev.name}`);
     const band = new Band(dev, log);
@@ -44,6 +47,17 @@ export class Band {
     })();
     return Promise.race([attempt, sleep(timeoutMs).then(() => { throw new Error("reconnect timed out"); })])
       .catch((e) => { log(`Reconnect skipped: ${e.message}`); try { dev.gatt?.disconnect(); } catch {} return null; });
+  }
+
+  /** After the person picks a band, drop this site's permission for every other band, so no reconnect can reach
+   *  a band that was handed down (Web Bluetooth forget(); skipped where the browser lacks it). */
+  static async forgetOthers(keep) {
+    if (!navigator.bluetooth?.getDevices) return 0;
+    let n = 0;
+    for (const d of await navigator.bluetooth.getDevices()) {
+      if (d.id !== keep?.id && typeof d.forget === "function") { try { await d.forget(); n++; } catch { /* keep going */ } }
+    }
+    return n;
   }
 
   constructor(device, log = () => {}) {

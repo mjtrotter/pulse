@@ -2,7 +2,7 @@
 // factors as separate facts (each with the draws behind it), metabolic syndrome, Lp(a) status and the KDIGO kidney
 // grid. Nothing here is folded into a score. Each fact stands on its own, and "never measured" is kept distinct
 // from "not present". Labs are the stored panels: [{date, v:{…}, meta:{key:{unit, flag, ref}}}], US units.
-import { derived } from "./labs.js?v=20260925173307";
+import { derived } from "./labs.js?v=20260925225520";
 
 const byDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 const num = (x) => (x == null || x === "" || !Number.isFinite(+x) ? null : +x);

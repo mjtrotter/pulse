@@ -1,12 +1,12 @@
 // Today: one hero (activity, whose drill-down holds the day's timeline and workouts), the questions Pulse
 // has (only when something triggered them), and the latest reading of every sensor. Charts live in the
 // drill-downs.
-import { tempC } from "../core/units.js?v=20260925173307";
-import { median } from "./stats.js?v=20260925173307";
-import { M, paceFrac } from "./drill.js?v=20260925173307";
-import { workoutPrompts } from "./daymon.js?v=20260925173307";
-import { cycleOn, cyclePromptCard, cycleTile } from "./cycleui.js?v=20260925173307";
-import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260925173307";
+import { tempC } from "../core/units.js?v=20260925225520";
+import { median } from "./stats.js?v=20260925225520";
+import { M, paceFrac } from "./drill.js?v=20260925225520";
+import { workoutPrompts } from "./daymon.js?v=20260925225520";
+import { cycleOn, cyclePromptCard, cycleTile } from "./cycleui.js?v=20260925225520";
+import { ampm, cap1, css, D, empty, FULLDAY, gauge, header, MON, mini, relMin, ringSvg, S, sc, sign, smooth, stateOf, syncChip, tDelta, tUnit, vital } from "./kit.js?v=20260925225520";
 
 const usualDays = (k, min = 5) => { const v = D.hist.slice(-29, -1).map((h) => h[k]).filter((x) => x != null); return v.length >= min ? median(v) : null; };
 const agoMin = (t) => (Date.now() - new Date(t.replace(" ", "T")).getTime()) / 60e3;

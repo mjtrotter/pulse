@@ -4,7 +4,7 @@
 // Coverline rule adapted from basal-temperature charting: a shift starts on the first of 3 consecutive
 // nights all ≥ 0.2 °C above the mean of the preceding 6 nights. Retrospective only: it confirms that
 // ovulation probably happened ~1 day before the shift; it can't predict it.
-import { mean, sd } from "./baseline.js?v=20260925173307";
+import { mean, sd } from "./baseline.js?v=20260925225520";
 
 /** nights: [{date, temp}] oldest first (temp = nightly median °C, null when missing). */
 export function detectShifts(nights, { rise = 0.2, before = 6, hold = 3 } = {}) {

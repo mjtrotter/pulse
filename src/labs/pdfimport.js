@@ -671,7 +671,79 @@ function tryParseBlock(flat, li, page) {
  * - `unmatched`: rare leftovers (e.g. a second, differently-valued row that collided with an
  *   already-used extras slug).
  */
+// ---------- patient-portal "result card" layout (BayCare / Cerner HealtheIntent printouts) ----------
+// Each result is three lines: the test's short name; "<value> <unit>", with any flag glued on ("4.9 g/dL(High)");
+// then "Date: Sep 09, 202610:23 a.m. EDT Reference Range: 3.6 g/dL - 5.1 g/dL" (the PDF's text run joins the year
+// to the time). A card can break across pages, with the portal's print header and URL footer in between. The
+// header's date is when it was printed and "Date Range" is the portal's filter, so neither is the draw date.
+const PORTAL_ALIASES = {
+  HGB: "hemoglobin", HCT: "hematocrit", SEGS: "neut_pct", LYMPHS: "lymph_pct", MONO: "mono_pct", EOS: "eos_pct", BASO: "baso_pct",
+  "NEUTROPHIL, ABS": "neut_abs", "LYMPH, ABS": "lymph_abs", "MONOCYTE, ABS": "mono_abs", "EOSINOPHIL, ABS": "eos_abs", "BASOPHIL, ABS": "baso_abs",
+  "BUN/CREAT": "bun_creat", "PROTEIN, TOT": "protein", "ALB/GLOB": "ag_ratio", "BILI, TOTAL": "bilirubin", MMA: "mma",
+};
+// Absolute white-cell counts arrive in thousands per µL here; Pulse stores cells/µL (as Quest reports them),
+// which the inflammation ratios (SII, PLR) assume.
+const PORTAL_THOUSANDS = new Set(["neut_abs", "lymph_abs", "mono_abs", "eos_abs", "baso_abs"]);
+const PORTAL_DATE = /^Date:\s*([A-Z][a-z]{2})[a-z]*\.?\s+(\d{1,2}),\s*(\d{4})/;
+const PORTAL_VALUE = /^([<>]=?)?\s*(-?\d+(?:\.\d+)?)\s*(.*?)\s*(?:\((High|Low|Critical High|Critical Low|Abnormal)\))?\s*$/i;
+const PORTAL_FLAG = { HIGH: "H", LOW: "L", "CRITICAL HIGH": "HH", "CRITICAL LOW": "LL", ABNORMAL: "A" };
+
+/** True when the pages look like a portal printout: several "Date: Mon DD, YYYY" result lines. */
+export function isPortalLayout(pages) {
+  let n = 0;
+  for (const p of pages) for (const l of p.lines) if (PORTAL_DATE.test(l.trim()) && ++n >= 3) return true;
+  return false;
+}
+function portalRef(text) {
+  const t = text.replace(/[µμ]/g, "u");
+  const ineq = t.match(/^\s*([<>]=?)\s*(\d+(?:\.\d+)?)/);
+  if (ineq) return `${ineq[1]}${ineq[2]}`;
+  const nums = [...t.matchAll(/\d+(?:\.\d+)?/g)].map((x) => x[0]);
+  return nums.length >= 2 ? `${nums[0]}-${nums[1]}` : nums[0] ?? null;
+}
+function parsePortal(pages) {
+  const lines = [];
+  for (const p of pages) for (const raw of p.lines) {
+    const t = raw.replace(/[\uE000-\uF8FF]/g, "").trim(); // the portal prints an icon-font "graph" glyph after each value
+    if (!t || /^https?:\/\/\S+.*\bPage \d+ of \d+$/i.test(t) || /^My\w* - Results\b/i.test(t)) continue; // print header / URL footer
+    lines.push({ page: p.page, text: t });
+  }
+  const all = pages.flatMap((p) => p.lines).join("\n"); // header and footer included: they often carry the lab's name
+  const lab = /BayCare/i.test(all) ? "BayCare" : /\bQuest\b/i.test(all) ? "Quest" : /\bLabcorp\b/i.test(all) ? "Labcorp" : null;
+  const values = {}, extras = {}, qualitative = {}, unmatched = [], dates = {};
+  for (let i = 1; i + 1 < lines.length; i++) {
+    const d = lines[i + 1].text.match(PORTAL_DATE);
+    if (!d) continue;
+    const name = lines[i - 1].text, { page, text: valText } = lines[i];
+    const mo = MONTHS[d[1].slice(0, 3).toLowerCase()];
+    if (mo) { const iso = `${d[3]}-${pad2(mo)}-${pad2(+d[2])}`; dates[iso] = (dates[iso] ?? 0) + 1; }
+    const rr = lines[i + 1].text.match(/Reference Range:\s*(.+)$/i), ref = rr ? portalRef(rr[1]) : null;
+    const m = valText.replace(/[µμ]/g, "u").match(PORTAL_VALUE);
+    if (!m) {
+      if (!/^N\/?A$/i.test(valText)) { const k = slug(name); if (k && !qualitative[k]) qualitative[k] = { name, text: valText, page }; }
+      continue;
+    }
+    let value = parseFloat(m[2]), unit = m[3] || null;
+    const flag = m[4] ? PORTAL_FLAG[m[4].toUpperCase()] ?? null : null;
+    const up = name.toUpperCase().replace(/\s+/g, " ");
+    const key = PORTAL_ALIASES[up] ?? ANALYTES.find((a) => a.re.test(name))?.key ?? null;
+    const meta = key ? ANALYTES.find((a) => a.key === key) : null;
+    if (!meta) { const k = slug(name); if (k && !extras[k]) extras[k] = { name, value, unit, flag, ref, page }; continue; }
+    if (values[key]) continue; // first card wins, as elsewhere
+    let r = ref;
+    if (PORTAL_THOUSANDS.has(key) && (!unit || /^(th|k|thou|10\^?3)/i.test(unit))) {
+      value = Math.round(value * 1000); unit = "cells/uL";
+      r = ref ? ref.replace(/\d+(?:\.\d+)?/g, (n) => String(Math.round(parseFloat(n) * 1000))) : ref; // the range moves with the value
+    }
+    else if (meta.si && unit && meta.si.re.test(unit)) { value = meta.si.convert(value); unit = meta.si.unit; }
+    values[key] = { value, unit, flag, ref: r, page, name: meta.name, ...(m[1] ? { cmp: m[1] } : {}) };
+  }
+  const date = Object.entries(dates).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return { date, lab, values, extras, qualitative, unmatched, layout: "portal", dates: Object.keys(dates).sort() };
+}
+
 export function parseLabs(pages) {
+  if (isPortalLayout(pages)) return parsePortal(pages);
   const flat = [];
   for (const p of pages) for (const line of p.lines) flat.push({ page: p.page, text: line });
 

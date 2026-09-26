@@ -1,24 +1,24 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260925173307";
-import * as db from "./core/db.js?v=20260925173307";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260925173307";
-import { stamp } from "./core/time.js?v=20260925173307";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260925173307";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260925173307";
-import { scoreDays } from "./analytics/scores.js?v=20260925173307";
-import { mergeLabPanel } from "./analytics/labs.js?v=20260925173307";
-import { buildModel } from "./v3/model.js?v=20260925173307";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260925173307";
-import { drill, M } from "./v3/drill.js?v=20260925173307";
-import { today } from "./v3/today.js?v=20260925173307";
-import { night } from "./v3/night.js?v=20260925173307";
-import { trends } from "./v3/trends.js?v=20260925173307";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260925173307";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260925173307";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260925173307";
-import { advSheet } from "./v3/advanced.js?v=20260925173307";
-import { cycleView } from "./v3/cycleui.js?v=20260925173307";
+import { Band } from "./core/ble.js?v=20260925225520";
+import * as db from "./core/db.js?v=20260925225520";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260925225520";
+import { stamp } from "./core/time.js?v=20260925225520";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260925225520";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260925225520";
+import { scoreDays } from "./analytics/scores.js?v=20260925225520";
+import { mergeLabPanel } from "./analytics/labs.js?v=20260925225520";
+import { buildModel } from "./v3/model.js?v=20260925225520";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260925225520";
+import { drill, M } from "./v3/drill.js?v=20260925225520";
+import { today } from "./v3/today.js?v=20260925225520";
+import { night } from "./v3/night.js?v=20260925225520";
+import { trends } from "./v3/trends.js?v=20260925225520";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260925225520";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20260925225520";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260925225520";
+import { advSheet } from "./v3/advanced.js?v=20260925225520";
+import { cycleView } from "./v3/cycleui.js?v=20260925225520";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -49,10 +49,15 @@ async function connect({ auto = false } = {}) {
   ctx.setStatus("connecting", "Connecting…");
   try {
     // requestDevice must run straight from the tap, so nothing is awaited before Band.choose.
-    const band = auto ? await Band.reconnect({ log: ctx.log, mac: await db.getSetting(ctx.store, "band_name") }) : await Band.choose({ log: ctx.log });
+    const band = auto ? await Band.reconnect({ log: ctx.log, mac: await db.getSetting(ctx.store, "band_name"), id: await db.getSetting(ctx.store, "band_id") }) : await Band.choose({ log: ctx.log });
     if (!band) { ctx.setStatus("off"); return false; }
     adoptBand(band);
-    if (!auto) { ctx.picked = true; ctx.noAuto = false; } // chosen in the picker: this phone may switch to it
+    if (!auto) { // chosen in the picker: this phone switches to it, remembers it by id, and forgets any other band
+      ctx.picked = true; ctx.noAuto = false;
+      if (band.device.id) await db.setSetting(ctx.store, "band_id", band.device.id);
+      const gone = await Band.forgetOthers(band.device).catch(() => 0);
+      if (gone) ctx.log(`Forgot ${gone} other band${gone > 1 ? "s" : ""} this phone remembered`);
+    }
     await db.setSetting(ctx.store, "band_name", band.name);
     ctx.setStatus("on", band.name);
     await sync();
@@ -86,7 +91,7 @@ async function reconnectQuietly() {
       try {
         let band = null;
         if (ctx.lastBand) { await Promise.race([ctx.lastBand.connect(), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000))]); band = ctx.lastBand; }
-        else band = await Band.reconnect({ log: ctx.log, mac: await db.getSetting(ctx.store, "band_name") });
+        else band = await Band.reconnect({ log: ctx.log, mac: await db.getSetting(ctx.store, "band_name"), id: await db.getSetting(ctx.store, "band_id") });
         if (band?.connected) { adoptBand(band); ctx.setStatus("on", band.name); ctx.log("Reconnected without the picker"); await sync(); return true; }
       } catch (e) { ctx.log(`Reconnect attempt: ${e.message}`); }
     }
@@ -346,7 +351,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260925173307");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260925225520");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -594,7 +599,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260925173307");
+    const { seedDemo } = await import("./demo.js?v=20260925225520");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

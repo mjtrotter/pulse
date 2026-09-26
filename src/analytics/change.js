@@ -1,7 +1,7 @@
 // Change over time, stated carefully: a robust trend slope, "before vs after" a change the person logged (a new
 // medication, a new routine), and which inputs moved a lab index between two draws. The language this supports
 // is "changed after", never "caused by".
-import { median, sd } from "./baseline.js?v=20260925173307";
+import { median, sd } from "./baseline.js?v=20260925225520";
 
 const DAY = 864e5;
 const dayNum = (date) => Math.round(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10)) / DAY);

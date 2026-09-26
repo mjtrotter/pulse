@@ -1,14 +1,14 @@
 // Labs: on-phone PDF import (with a review step) or manual entry, the panel over time, what it implies (each
 // paper's own formula), heart risk (AHA PREVENT from labs + home BP), and the lab context other screens use.
-import { derived } from "../analytics/labs.js?v=20260925173307";
-import { CANONICAL } from "../labs/pdfimport.js?v=20260925173307";
-import { phenoAge, PHENOAGE_INPUTS } from "../analytics/bioage.js?v=20260925173307";
-import { prevent } from "../analytics/prevent.js?v=20260925173307";
-import { preventCategory } from "../analytics/riskctx.js?v=20260925173307";
-import { riskContextCard, tierChip, whatMoved } from "./riskui.js?v=20260925173307";
-import { bpSummary } from "./bp.js?v=20260925173307";
-import { mean } from "./stats.js?v=20260925173307";
-import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20260925173307";
+import { derived } from "../analytics/labs.js?v=20260925225520";
+import { CANONICAL } from "../labs/pdfimport.js?v=20260925225520";
+import { phenoAge, PHENOAGE_INPUTS } from "../analytics/bioage.js?v=20260925225520";
+import { prevent } from "../analytics/prevent.js?v=20260925225520";
+import { preventCategory } from "../analytics/riskctx.js?v=20260925225520";
+import { riskContextCard, tierChip, whatMoved } from "./riskui.js?v=20260925225520";
+import { bpSummary } from "./bp.js?v=20260925225520";
+import { mean } from "./stats.js?v=20260925225520";
+import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20260925225520";
 
 /** Analytes Pulse tracks: the parser's canonical catalog (US conventional units, grouped). ref = a typical
  *  adult range used only when the report's own range isn't available; the lab's range and flag always win. */
@@ -30,10 +30,29 @@ export function latestLabs() {
   for (const d of D.labs ?? []) for (const [k, v] of Object.entries(d.v ?? {})) if (v != null) out[k] = { value: v, date: d.date, meta: d.meta?.[k] ?? null };
   return out;
 }
-const flagOf = (a, v, meta) => {
+/** A report's printed range ("11.7-15.5", "<30", ">=60") as bounds, or null when it can't be read. */
+export function parseRef(ref) {
+  const t = String(ref ?? "").replace(/\s/g, "");
+  let m = t.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/);
+  if (m) return { lo: +m[1], hi: +m[2] };
+  if ((m = t.match(/^<=?(\d+(?:\.\d+)?)$/))) return { lo: null, hi: +m[1] };
+  if ((m = t.match(/^>=?(\d+(?:\.\d+)?)$/))) return { lo: +m[1], hi: null };
+  return null;
+}
+// Built-in ranges are only a fallback for typed-in values; a few differ by sex.
+const REF_FEMALE = { hemoglobin: [11.7, 15.5] };
+/** Out of range? The report's own flag wins, then the report's printed range (lab- and sex-specific), and only
+ *  for values with neither, the built-in typical range. */
+export const flagOf = (a, v, meta, sex = D.profile?.sex) => {
   if (meta?.flag) return /h/i.test(meta.flag) ? ["H", "hi"] : /l/i.test(meta.flag) ? ["L", "lo"] : ["", ""];
-  if (!a.ref) return ["", ""];
-  return v > a.ref[1] ? ["H", "hi"] : v < a.ref[0] ? ["L", "lo"] : ["", ""];
+  if (meta?.ref) {
+    const r = parseRef(meta.ref);
+    if (!r) return ["", ""];
+    return r.hi != null && v > r.hi ? ["H", "hi"] : r.lo != null && v < r.lo ? ["L", "lo"] : ["", ""];
+  }
+  const ref = (sex === "female" && REF_FEMALE[a.k]) || a.ref;
+  if (!ref) return ["", ""];
+  return v > ref[1] ? ["H", "hi"] : v < ref[0] ? ["L", "lo"] : ["", ""];
 };
 
 // ---------- heart risk ----------
@@ -87,7 +106,7 @@ export function preventCard(p) {
 function labsCard() {
   const Ls = D.labs ?? [];
   const add = `<div class="acts2"><button class="cta" data-labpdf>Import a lab PDF</button><button class="cta ghost" data-sheet="labs">Type values in</button></div>`;
-  if (!Ls.length) return `<p class="note" style="margin:0 0 14px">Import the PDF from Quest, Labcorp or Function Health. It's read on this phone and you check every value before it's saved; nothing leaves the phone.</p>${add}`;
+  if (!Ls.length) return `<p class="note" style="margin:0 0 14px">Import the PDF from Quest, Labcorp or Function Health, or a results printout from a hospital patient portal (such as MyBayCare). It's read on this phone and you check every value before it's saved; nothing leaves the phone.</p>${add}`;
   const groups = [...new Set(ANALYTES.map((a) => a.grp))];
   const spark = (a) => { const v = Ls.map((d) => d.v[a.k]).filter((z) => z != null); if (v.length < 2) return S(60, 22, ""); const x = sc(0, v.length - 1, 4, 56), y = sc(Math.min(...v), Math.max(...v) + 1e-9, 18, 4); return S(60, 22, `<path d="${poly(v.map((z, i) => [x(i), y(z)]))}" fill="none" stroke="${css("--ink3")}" stroke-width="1.4"/>${v.map((z, i) => `<circle cx="${x(i)}" cy="${y(z)}" r="${i === v.length - 1 ? 3 : 2}" fill="${i === v.length - 1 ? css("--ink") : css("--ink3")}"/>`).join("")}`); };
   // Each test shows its newest draw (older panels fill in tests a newer one didn't repeat, dated). Out-of-range
@@ -95,7 +114,7 @@ function labsCard() {
   const newest = Ls[Ls.length - 1].date;
   const one = (a) => {
     const withV = Ls.filter((d) => d.v[a.k] != null), last = withV[withV.length - 1], v = last.v[a.k], meta = last.meta?.[a.k], p = withV.length > 1 ? withV[withV.length - 2].v[a.k] : null, [f, cls] = flagOf(a, v, meta), id = `lab-${a.k}`;
-    const ref = meta?.ref ?? (!a.ref ? "" : a.ref[1] >= 200 ? `≥${a.ref[0]}` : a.ref[0] ? `${a.ref[0]}–${a.ref[1]}` : `<${a.ref[1]}`);
+    const fb = (D.profile?.sex === "female" && REF_FEMALE[a.k]) || a.ref, ref = meta?.ref ?? (!fb ? "" : fb[1] >= 200 ? `≥${fb[0]}` : fb[0] ? `${fb[0]}–${fb[1]}` : `<${fb[1]}`);
     const html = `<div class="an" data-expand="${id}"><div class="an-n">${a.n}${ref || last.date !== newest ? `<small>${ref ? `ref ${esc(ref)}` : ""}${last.date !== newest ? `${ref ? " · " : ""}<span class="older">${shortLabel(last.date)}</span>` : ""}</small>` : ""}</div>${spark(a)}<div class="an-v"><b class="${cls}">${v}${f ? `<sup>${f}</sup>` : ""}</b><small>${esc(a.u || meta?.unit || "")}${p != null ? ` · ${v < p ? "↓" : v > p ? "↑" : "="} ${Math.abs(v - p).toFixed(a.k === "a1c" || a.k === "hscrp" || a.k === "insulin" || a.k === "creatinine" || a.k === "tsh" ? 1 : 0)}` : ""}</small></div></div>
         ${st.open.has(id) ? `<div class="an-x">${withV.map((d) => `<span>${shortLabel(d.date)}<b>${d.v[a.k]}</b></span>`).join("")}</div>` : ""}`;
     return { flagged: !!cls, html };

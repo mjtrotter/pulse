@@ -12,7 +12,7 @@
 //   - BMR (Mifflin-St Jeor 1990): not mentioned anywhere in lit_cardio_fitness.md or METRICS.md — no
 //     formula, no coefficients, no citation to verify. energy() reports bmr: null rather than invent one.
 //   - Steps-only calorie fallback: no verified steps→kcal coefficient exists in either file either.
-import { median, clamp } from "./baseline.js?v=20260925173307";
+import { median, clamp } from "./baseline.js?v=20260925225520";
 
 // ---------------------------------------------------------------------------------------------
 // §1 Non-exercise VO2max

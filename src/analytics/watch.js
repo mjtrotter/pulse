@@ -7,7 +7,7 @@
 // Sources: ~/jcv8/research/lit_spo2_temp_illness.md (§2 STOP-Bang + composite, §3 temperature
 // deviation, §4 NightSignal/CuSum/multi-signal composite, §6 sleep-onset temperature rise) and
 // ~/jcv8/research/lit_sleep_circadian.md (§7.3 CVHR).
-import { baseline, clamp, median } from "./baseline.js?v=20260925173307";
+import { baseline, clamp, median } from "./baseline.js?v=20260925225520";
 
 const toMs = (t) => Date.UTC(+t.slice(0, 4), +t.slice(5, 7) - 1, +t.slice(8, 10), +t.slice(11, 13), +t.slice(14, 16), +(t.slice(17, 19) || 0));
 const fmt = (ms) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
