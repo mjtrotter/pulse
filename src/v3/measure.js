@@ -1,15 +1,15 @@
 // Measure: finger ECG rhythm checks and home cuff readings, each charted as recorded over time. A recording
 // opens in a full-screen view with the strip, HRV, breathing from the ECG and the average beat, all computed
 // on the phone by Pulse's analytics modules.
-import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20260925225520";
-import { advancedHRV } from "../analytics/hrv_advanced.js?v=20260925225520";
-import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20260925225520";
-import { toMs } from "../core/time.js?v=20260925225520";
-import { clamp, mean, median, ols, sd } from "./stats.js?v=20260925225520";
-import { bpCategory, bpSummary } from "./bp.js?v=20260925225520";
-import { bpDetail } from "./riskui.js?v=20260925225520";
-import { labsBlock } from "./labsui.js?v=20260925225520";
-import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20260925225520";
+import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20261005164817";
+import { advancedHRV } from "../analytics/hrv_advanced.js?v=20261005164817";
+import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20261005164817";
+import { toMs } from "../core/time.js?v=20261005164817";
+import { clamp, mean, median, ols, sd } from "./stats.js?v=20261005164817";
+import { bpCategory, bpSummary } from "./bp.js?v=20261005164817";
+import { bpDetail } from "./riskui.js?v=20261005164817";
+import { labsBlock } from "./labsui.js?v=20261005164817";
+import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20261005164817";
 
 const SETTLE = 5;
 const AN = new Map();
@@ -74,7 +74,8 @@ export function ecgOverview() {
   return `<div class="ov-strip" data-ecgov>${S(W0, H, `<path d="${top}${bot}Z" fill="${css("--ink3")}" opacity=".55"/>${flags}<rect class="win" x="${x(st.ecgStart).toFixed(1)}" y="1" width="${(x(Math.min(8, E.dur)) - x(0)).toFixed(1)}" height="${H - 2}" rx="5" fill="${css("--heart")}" fill-opacity=".12" stroke="${css("--heart")}" stroke-width="1.5"/>`)}</div>
     <div class="ecg-cap"><span>Drag the window · ${Math.round(E.dur + SETTLE)} s</span>${E.iv.some((z) => !z.ok) ? `<span>Jump to <button class="link" data-jump="early">flagged beat</button></span>` : ""}</div>`;
 }
-const stats = (arr) => `<div class="stat6">${arr.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join("")}</div>`;
+// Tiles are [value, label, guide key]; a key makes the tile open its "How to read this" sheet.
+const stats = (arr) => `<div class="stat6">${arr.map(([v, l, k]) => `<div${k ? ` class="xt" data-explain="${k}"` : ""}><b>${v}</b><span>${l}</span></div>`).join("")}</div>`;
 const f1 = (v, d = 1) => (v == null || !Number.isFinite(v) ? "—" : v.toFixed(d));
 export function hrvPanel() {
   const E = current(), a = E.adv, h = E.s?.hrv, W0 = 340;
@@ -87,7 +88,7 @@ export function hrvPanel() {
       + `<path d="${poly(ok.map((r) => [x(r.t), y(r.v)]))}" fill="none" stroke="${css("--hrv")}" stroke-width="1.4"/>` + E.iv.filter((r) => !r.ok).map((r) => `<circle cx="${x(r.t).toFixed(1)}" cy="${y(clamp(r.v, lo, hi)).toFixed(1)}" r="3" fill="none" stroke="${css("--bad")}" stroke-width="1.4"/>`).join("")
       + [0, 30, 60, 90].filter((t) => t < E.dur).map((t) => `<text x="${x(t)}" y="${H - 2}" text-anchor="middle" class="axis">${t}s</text>`).join("");
     body = scrubbable(uid("s"), W0, H, svgb, E.iv.map((r) => [x(r.t), y(clamp(r.v, lo, hi)), `${r.t.toFixed(1)} s · <b>${r.v.toFixed(0)} ms</b> (${(60000 / r.v).toFixed(0)} bpm)${r.ok ? "" : " · left out"}`]), `Time between beats (ms). The wave is your breathing speeding and slowing the heart.`)
-      + stats([[f1(h.rmssd), "RMSSD ms"], [E.dur >= 60 ? f1(h.sdnn) : "—", "SDNN ms"], [E.dur >= 60 ? `${f1(h.pnn50)}%` : "—", "pNN50"], [`${f1(a.cvnn)}%`, "CVNN"], [f1(h.stress_index, 0), "Baevsky SI"], [f1(h.hr, 0), "mean bpm"]]);
+      + stats([[f1(h.rmssd), "RMSSD ms", "rmssd"], [E.dur >= 60 ? f1(h.sdnn) : "—", "SDNN ms", "sdnn"], [E.dur >= 60 ? `${f1(h.pnn50)}%` : "—", "pNN50", "pnn50"], [`${f1(a.cvnn)}%`, "CVNN", "cvnn"], [f1(h.stress_index, 0), "Baevsky SI", "baevsky"], [f1(h.hr, 0), "mean bpm", "ecg_hr"]]);
   } else if (st.hrvTab === "spectrum") {
     const sp = a.spectrum;
     if (!sp) body = `<p class="note">Rhythm analysis needs at least a minute of clean beats (Baek 2015). This recording has ${Math.round(a.duration)} s; use the 2-minute option.</p>`;
@@ -100,7 +101,7 @@ export function hrvPanel() {
         + (sp.hfPeak ? `<line x1="${x(sp.hfPeak)}" x2="${x(sp.hfPeak)}" y1="26" y2="${H - 20}" stroke="${css("--breath")}" stroke-width="1.2"/><text x="${x(sp.hfPeak) + 4}" y="36" class="axis">${(sp.hfPeak * 60).toFixed(1)} breaths/min</text>` : "")
         + [0, 0.1, 0.2, 0.3, 0.4, 0.5].map((f) => `<text x="${x(f)}" y="${H - 4}" text-anchor="middle" class="axis">${f}</text>`).join("");
       body = scrubbable(uid("s"), W0, H, svgb, sp.freqs.filter((_, i) => i % 2 === 0).map((f) => { const i = sp.freqs.indexOf(f); return [x(f), y(Math.min(pmax * 1.1, sp.psd[i])), `${f.toFixed(3)} Hz (${(f * 60).toFixed(1)}/min) · <b>${sp.psd[i].toFixed(0)} ms²/Hz</b>`]; }), `Power by rhythm speed (Hz). HF = breathing; LF = slower blood-pressure waves.`)
-        + stats([[f1(sp.lnHf, 2), "ln HF (ms²)"], [f1(sp.lnLf, 2), "ln LF (ms²)"], [f1(sp.lfhf, 2), "LF/HF"], [f1(sp.hfnu, 0), "HF n.u."], [sp.hfPeak ? f1(sp.hfPeak * 60) : "—", "HF peak /min"], [`${Math.round(sp.duration)} s`, "clean length"]])
+        + stats([[f1(sp.lnHf, 2), "ln HF (ms²)", "lnhf"], [f1(sp.lnLf, 2), "ln LF (ms²)", "lnlf"], [f1(sp.lfhf, 2), "LF/HF", "lfhf"], [f1(sp.hfnu, 0), "HF n.u.", "hfnu"], [sp.hfPeak ? f1(sp.hfPeak * 60) : "—", "HF peak /min", "hfpeak"], [`${Math.round(sp.duration)} s`, "clean length"]])
         + `<p class="note">Lomb-Scargle spectrum of the beat intervals. HF needs 1 min and LF 2 min of clean beats (Baek 2015): ${sp.hfValid ? "✓" : "✗"} HF, ${sp.lfValid ? "✓" : "✗"} LF. LF/HF is shown for completeness; it is not a reliable "stress balance" meter (Billman 2013).</p>`;
     }
   } else if (st.hrvTab === "poincare") {
@@ -109,15 +110,15 @@ export function hrvPanel() {
       + rr.slice(0, -1).map((v, i) => `<circle cx="${x(v).toFixed(1)}" cy="${y(rr[i + 1]).toFixed(1)}" r="2.6" fill="${css("--hrv")}" opacity=".55"/>`).join("")
       + `<ellipse cx="${x(m)}" cy="${y(m)}" rx="${(p.sd2 * k * 1.5).toFixed(1)}" ry="${(p.sd1 * k * 1.5).toFixed(1)}" transform="rotate(-45 ${x(m)} ${y(m)})" fill="${css("--hrv")}" fill-opacity=".08" stroke="${css("--hrv")}" stroke-width="1.5"/>`
       + `<text x="${x(hi)}" y="${y(hi) - 6}" text-anchor="end" class="axis">RRₙ₊₁ = RRₙ</text><text x="${x(lo)}" y="${H - 4}" class="axis">RRₙ (ms) →</text>`)
-      + stats([[f1(p.sd1), "SD1 ms (short-term)"], [f1(p.sd2), "SD2 ms (long-term)"], [f1(p.ratio, 2), "SD1/SD2"], [f1(p.csi, 2), "CSI"], [f1(p.cvi, 2), "CVI"], [`${f1(p.area / 1000)}k`, "ellipse ms²"]])
+      + stats([[f1(p.sd1), "SD1 ms (short-term)", "sd1"], [f1(p.sd2), "SD2 ms (long-term)", "sd2"], [f1(p.ratio, 2), "SD1/SD2", "poincare"], [f1(p.csi, 2), "CSI", "csi"], [f1(p.cvi, 2), "CVI", "cvi"], [`${f1(p.area / 1000)}k`, "ellipse ms²", "poincare"]])
       + `<p class="note">Each dot plots one beat interval against the next. The ellipse's width (SD1) is quick beat-to-beat change; its length (SD2) is slower drift (Brennan 2001).</p>`;
   } else if (a.dfa1 == null) {
     body = `<p class="note">Complexity measures need about 1.5–2 minutes of clean beats. This recording has ${Math.round(a.duration)} s; use the 2-minute option to see them.</p>`;
   } else {
-    const scale = (lbl, v, lo, hi, marks, txt, fmt = (z) => z.toFixed(2)) => { const x = sc(lo, hi, 6, 214); return `<div class="scale"><div class="sc-h"><b>${lbl}</b><em>${fmt(v)}</em></div>${S(220, 26, `<rect x="6" y="9" width="208" height="6" rx="3" fill="${css("--track")}"/>${marks.map(([a0, a1, c]) => `<rect x="${x(a0)}" y="9" width="${x(a1) - x(a0)}" height="6" rx="3" fill="${css(c)}" opacity=".55"/>`).join("")}<circle cx="${clamp(x(v), 6, 214)}" cy="12" r="6" fill="${css("--ink")}" stroke="${css("--bg")}" stroke-width="2"/><text x="6" y="26" class="axis">${lo}</text><text x="214" y="26" text-anchor="end" class="axis">${hi}</text>`)}<p>${txt}</p></div>`; };
-    body = scale("DFA α1", a.dfa1, 0.3, 1.7, [[0.75, 1.25, "--good"]], `Fractal pattern of the beat intervals over 4–16 beats (Peng 1995). About 1.0 at healthy rest; drifts toward 0.5 (random) with exertion or irregular beats.`)
-      + scale("Sample entropy", a.sampen, 0, 3, [[1, 2.2, "--good"]], `How unpredictable the rhythm is (Richman & Moorman 2000). Lower means more regular. Compare with your own recordings.`)
-      + scale("Fragmentation (PIP)", a.fragmentation.pip, 30, 80, [], `Share of beats where the speed-up/slow-down direction flips (Costa 2017). Higher values are linked with ageing and heart disease; tracked against your own.`, (z) => `${z.toFixed(0)}%`)
+    const scale = (lbl, v, lo, hi, marks, txt, fmt = (z) => z.toFixed(2), key = null) => { const x = sc(lo, hi, 6, 214); return `<div class="scale"><div class="sc-h"><b>${lbl}${key ? `<button class="xi" data-explain="${key}" aria-label="How to read ${lbl}">i</button>` : ""}</b><em>${fmt(v)}</em></div>${S(220, 26, `<rect x="6" y="9" width="208" height="6" rx="3" fill="${css("--track")}"/>${marks.map(([a0, a1, c]) => `<rect x="${x(a0)}" y="9" width="${x(a1) - x(a0)}" height="6" rx="3" fill="${css(c)}" opacity=".55"/>`).join("")}<circle cx="${clamp(x(v), 6, 214)}" cy="12" r="6" fill="${css("--ink")}" stroke="${css("--bg")}" stroke-width="2"/><text x="6" y="26" class="axis">${lo}</text><text x="214" y="26" text-anchor="end" class="axis">${hi}</text>`)}<p>${txt}</p></div>`; };
+    body = scale("DFA α1", a.dfa1, 0.3, 1.7, [[0.75, 1.25, "--good"]], `Fractal pattern of the beat intervals over 4–16 beats (Peng 1995). About 1.0 at healthy rest; drifts toward 0.5 (random) with exertion or irregular beats.`, undefined, "dfa")
+      + scale("Sample entropy", a.sampen, 0, 3, [[1, 2.2, "--good"]], `How unpredictable the rhythm is (Richman & Moorman 2000). Lower means more regular. Compare with your own recordings.`, undefined, "sampen")
+      + scale("Fragmentation (PIP)", a.fragmentation.pip, 30, 80, [], `Share of beats where the speed-up/slow-down direction flips (Costa 2017). Higher values are linked with ageing and heart disease; tracked against your own.`, (z) => `${z.toFixed(0)}%`, "pip")
       + `<p class="note">Each of these needs about 1.5–2 minutes of clean beats; Pulse hides them on shorter recordings.</p>`;
   }
   return `<div class="seg small">${tabs.map(([k, l]) => `<button data-hrvtab="${k}" class="${st.hrvTab === k ? "on" : ""}">${l}</button>`).join("")}</div>${body}`;
@@ -131,7 +132,7 @@ function breathingPanel() {
   return `<div class="fuse">${e.channels.map((c, i) => { const v = sig[i].map((p) => p[1]), x = sc(0, win, 0, W0), y = sc(Math.min(...v), Math.max(...v), H - 3, 3);
     return `<div class="fch"><div class="fch-h"><b>${c.name}</b><em>${c.rate != null ? `${c.rate.toFixed(1)}/min` : "—"}</em></div>${S(W0, H, `<path d="${smooth(sig[i].map((p) => [x(p[0]), y(p[1])]), 0.15)}" fill="none" stroke="${css("--breath")}" stroke-width="1.4"/>`, 'preserveAspectRatio="none"')}
       <div class="fch-w"><span>clarity ${(c.clarity ?? 0) > 99 ? "99+" : (c.clarity ?? 0).toFixed(0)}×</span><span class="wbar"><i style="width:${(100 * (c.weight ?? 0)) / maxW}%"></i></span><span>weight ${(c.weight ?? 0).toFixed(1)}</span></div></div>`; }).join("")}
-    <div class="fused"><div><div class="lbl">Fused breathing rate</div><div class="num big2">${E.edrOk ? e.rate.toFixed(1) : "—"}<small>/min</small></div></div><div class="agree"><b>${e.channels.filter((c) => c.weight > 0).length} of 3</b> channels used<br>agreement ${Math.round((e.agreement ?? 0) * 100)}%</div></div>
+    <div class="fused xt" data-explain="edr"><div><div class="lbl">Fused breathing rate</div><div class="num big2">${E.edrOk ? e.rate.toFixed(1) : "—"}<small>/min</small></div></div><div class="agree"><b>${e.channels.filter((c) => c.weight > 0).length} of 3</b> channels used<br>agreement ${Math.round((e.agreement ?? 0) * 100)}%</div></div>
     <p class="note">Three signals in the ECG move with each breath: beat timing, R-wave height and QRS steepness. Each is scored by how clear its rhythm is, and the rate is their weighted median, so one noisy signal can't drag it (Charlton 2016).${E.edrOk ? "" : " The channels disagree in this recording, so no rate is shown."}${D.latest?.br != null ? ` Asleep last night, your pulse recordings gave ${D.latest.br.toFixed(1)}/min.` : ""}</p></div>`;
 }
 function beatPanel() {
@@ -144,16 +145,16 @@ function beatPanel() {
     + (b.qrsOn != null && b.tEnd != null ? `<rect x="${x(ms(b.qrsOn))}" y="${H - 34}" width="${x(ms(b.tEnd)) - x(ms(b.qrsOn))}" height="3" rx="1.5" fill="${css("--temp")}" opacity=".8"/>` : "")
     + `<path d="${poly(b.template.map((v, k) => [x(ms(k)), y(v)]))}" fill="none" stroke="${css("--ink")}" stroke-width="2" stroke-linejoin="round"/>`
     + vl(b.qrsOn, "Q") + vl(b.qrsOff, "J") + vl(b.tPeak, "T") + vl(b.tEnd, "T end"))
-    + stats([[`${f1(b.qrs_ms, 0)} ms`, `QRS${b.qrs_ms != null ? (b.qrs_ms < 120 ? " · under 120" : " · wide") : ""}`], [`${f1(b.qt_ms, 0)} ms`, "QT"], [`${f1(b.qtcF, 0)} ms`, `QTc Fridericia${b.qtcF != null && b.qtcF < 450 ? " · under 450" : ""}`], [`${f1(b.rAmp, 2)} mV`, "R height"], [`${f1(b.tAmp, 2)} mV`, "T height"], [b.beats ?? "—", "beats averaged"]])
-    + `<p class="note">The median of ${b.beats} aligned beats, so noise cancels out. QRS edges are where the slope becomes significant; T end uses the tangent method; QTc uses Fridericia (Luo 2004). A finger lead is not a 12-lead: check the markers by eye, and treat these as estimates.</p>`;
+    + stats([[`${f1(b.qrs_ms, 0)} ms`, `QRS${b.qrs_ms != null ? (b.qrs_ms < 120 ? " · under 120" : " · wide") : ""}`, "qrs"], [`${f1(b.qt_ms, 0)} ms`, "QT", "qtc"], [`${f1(b.qtcF, 0)} ms`, `QTc Fridericia${b.qtcF != null && b.qtcF < 450 ? " · under 450" : ""}`, "qtc"], [`${f1(b.rAmp, 2)} mV`, "R height", "amp"], [`${f1(b.tAmp, 2)} mV`, "T height", "amp"], [b.beats ?? "—", "beats averaged", "beats"]])
+    + `<p class="note">The median of ${b.beats} aligned beats, so noise cancels out. QRS edges are where the slope becomes significant; T end uses the tangent method; QTc uses Fridericia (Luo 2004). Tap QT or QTc for what the difference means and where your number sits. A finger lead is not a 12-lead: check the markers by eye, and treat these as estimates.</p>`;
 }
 export function recView() {
   const E = current(), sn = E.sn, h = E.s?.hrv, tooShort = E.dur < 25 || !E.s;
   return `<div class="aurora"><i class="a"></i><i class="b"></i><i class="c"></i></div><div class="inner">
     <div class="m-top"><button class="back" data-close>‹ Measure</button><span class="lbl">finger lead · ${sn.fs ?? ECG_FS} Hz</span></div>
-    <div class="card hero-ecg v-${E.verdict[1]}" style="margin-top:16px"><div class="rhythm"><div class="pulse-dot ${E.verdict[1]}"></div><div><div class="lbl">Heart rhythm check · ${recWhen(sn.t)}</div><div class="r-verdict">${E.verdict[0]}</div><div class="r-sub">${Math.round(E.dur + SETTLE)} s${E.s ? ` · ${Math.round(E.s.quality * 100)}% clean beats` : ""}${E.early ? ` · ${E.early} interval${E.early > 1 ? "s" : ""} set aside` : ""}</div></div></div>
-      <div class="r-stats"><div><b>${f1(h?.hr, 0)}</b><span>bpm</span></div><div><b>${f1(h?.rmssd, 0)}</b><span>RMSSD ms</span></div><div><b>${E.edrOk ? E.edr.rate.toFixed(1) : "—"}</b><span>breaths/min</span></div><div><b>${f1(E.mb?.qtcF, 0)}</b><span>QTc ms</span></div></div>
-      <p class="note">${E.verdict[2] ? `${E.verdict[2]} ` : ""}${h ? `Irregularity screen (Dash 2009): normalised RMSSD ${h.nrmssd.toFixed(3)} (flag above 0.1), entropy ${h.shannon.toFixed(2)}, turning points ${h.tpr.toFixed(2)}. ` : ""}A screening check, not a diagnosis.</p></div>
+    <div class="card hero-ecg v-${E.verdict[1]}" style="margin-top:16px"><div class="rhythm"><div class="pulse-dot ${E.verdict[1]}"></div><div><div class="lbl">Heart rhythm check · ${recWhen(sn.t)}</div><div class="r-verdict">${E.verdict[0]}</div><div class="r-sub">${Math.round(E.dur + SETTLE)} s${E.s ? ` · <button class="xlink" data-explain="quality">${Math.round(E.s.quality * 100)}% clean beats</button>` : ""}${E.early ? ` · ${E.early} interval${E.early > 1 ? "s" : ""} set aside` : ""}</div></div></div>
+      <div class="r-stats"><div class="xt" data-explain="ecg_hr"><b>${f1(h?.hr, 0)}</b><span>bpm</span></div><div class="xt" data-explain="rmssd"><b>${f1(h?.rmssd, 0)}</b><span>RMSSD ms</span></div><div class="xt" data-explain="edr"><b>${E.edrOk ? E.edr.rate.toFixed(1) : "—"}</b><span>breaths/min</span></div><div class="xt" data-explain="qtc"><b>${f1(E.mb?.qtcF, 0)}</b><span>QTc ms</span></div></div>
+      <p class="note">${E.verdict[2] ? `${E.verdict[2]} ` : ""}${h ? `Irregularity screen (Dash 2009): normalised RMSSD ${h.nrmssd.toFixed(3)} (flag above 0.1), entropy ${h.shannon.toFixed(2)}, turning points ${h.tpr.toFixed(2)}. ` : ""}A screening check, not a diagnosis. <button class="xlink" data-explain="irreg">How is this judged?</button></p></div>
     <div class="sec"><h2>The recording</h2><span class="lbl">${Math.round(E.dur + SETTLE)} s</span></div>
     <div class="card" id="ecgcard">${ecgTrace()}${ecgOverview()}</div>
     ${tooShort ? "" : `<div class="sec"><h2>Heart rate variability</h2><span class="lbl">${E.s.rr.length} clean beats</span></div>
@@ -311,7 +312,7 @@ function bpSection() {
       <p class="note">Average miss in systolic mmHg over ${pairs.length} readings paired with the band's own estimate. The band reads ${Math.abs(bias).toFixed(0)} mmHg ${bias < 0 ? "low" : "high"} on average (95% within ${(bias - 1.96 * sdd).toFixed(0)} to ${(bias + 1.96 * sdd).toFixed(0)}). Pulse shows cuff numbers only; the AHA advises against cuffless readings for diagnosis.</p></div>`;
   }
   const first = all[0], diff = sum && toMs(first.t) < now - 21 * 864e5 ? sum.sys - mean(all.filter((r) => toMs(r.t) < toMs(first.t) + 7 * 864e5).map((r) => r.sys)) : null;
-  return `<div class="card rise" style="--i:6"><div class="bp-h"><div><div class="lbl">Home average · last 7 days</div><div class="num big2">${sum ? `${sum.sys.toFixed(0)}<span class="slash">/</span>${sum.dia.toFixed(0)}` : "—"}<small>mmHg</small></div></div>${cat ? `<span class="badge ${cat[1]}">${cat[0]}</span>` : ""}</div>
+  return `<div class="card rise" style="--i:6"><div class="bp-h"><div><div class="lbl">Home average · last 7 days <button class="xi" data-explain="bp" aria-label="How to read blood pressure">i</button></div><div class="num big2">${sum ? `${sum.sys.toFixed(0)}<span class="slash">/</span>${sum.dia.toFixed(0)}` : "—"}<small>mmHg</small></div></div>${cat ? `<span class="badge ${cat[1]}">${cat[0]}</span>` : ""}</div>
       <div class="agg">${[["14", "2W"], ["30", "30D"], ["90", "90D"]].map(([k, l]) => `<button data-bpagg="${k}" class="${st.bpAgg === k ? "on" : ""}">${l}</button>`).join("")}</div>
       ${rows.length ? scrubbable(uid("s"), W0, H, body, rows.map((r) => [x(toMs(r.t)), y(r.sys), `${recWhen(r.t)} · <b>${r.sys}/${r.dia}</b>${r.pulse ? ` · pulse ${r.pulse}` : ""}`]), `Bars: each cuff reading, systolic to diastolic (morning solid).${roll.length >= 2 ? " Lines: 7-day averages." : ""}`) : `<p class="note">No readings in this window.</p>`}
       <div class="stat3"><div><b>${diff != null ? sign(diff, 0) : "—"}</b><span>systolic vs first week</span></div><div><b>${all.filter((r) => toMs(r.t) >= now - 7 * 864e5).length}</b><span>readings this week</span></div><div><b>${all.length}</b><span>readings logged</span></div></div>

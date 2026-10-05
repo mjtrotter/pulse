@@ -1,10 +1,10 @@
 /* Pulse v3. Dark + light (follows the phone unless set in Profile). Motion is meaningful and honours Reduce Motion. */
-@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20260925225520") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20260925225520") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20260925225520") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20260925225520") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20260925225520") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20260925225520") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20261005164817") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20261005164817") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20261005164817") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20261005164817") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20261005164817") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20261005164817") format("woff2"); font-display: swap; }
 
 :root, [data-theme="dark"] {
   --bg: #05060a; --card: rgba(255,255,255,.045); --card-hi: rgba(255,255,255,.075); --line: rgba(255,255,255,.08); --grid: rgba(255,255,255,.06);
@@ -106,6 +106,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .chip { padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-hi); font-size: 14px; font-weight: 500; color: var(--ink); transition: all .2s; }
 .chip.on { background: var(--ink); color: var(--bg); border-color: transparent; }
 .chip.ghost { background: transparent; color: var(--ink2); }
+.other { display: flex; gap: 8px; margin-top: 10px; }
+.other input { flex: 1; min-width: 0; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-hi); color: var(--ink); font-size: 14px; }
+.other input::placeholder { color: var(--ink3); }
 .thanks { font-size: 14px; color: var(--ink2); }
 
 /* ---------- montage ---------- */
@@ -355,6 +358,34 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 [data-theme="dark"] .ix-x code { background: rgba(255,255,255,.06); }
 .ix-x p { margin: 8px 0 0; line-height: 1.45; }
 .ix-x .cite { font-size: 11.5px; color: var(--ink3); }
+
+/* "How to read this" */
+.xi { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 7px; padding: 0; border-radius: 50%; border: 1px solid var(--ink3); background: transparent; color: var(--ink2); font: italic 600 11px/1 Georgia, serif; vertical-align: 1px; cursor: pointer; }
+.xt { position: relative; cursor: pointer; }
+.xt::after { content: "i"; position: absolute; top: 7px; right: 8px; width: 14px; height: 14px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--ink3); color: var(--ink3); font: italic 600 9px/1 Georgia, serif; opacity: .8; }
+.xlink { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--ink3); text-underline-offset: 3px; cursor: pointer; }
+.xblock { display: block; margin: 10px 2px 2px; font-size: 14px; }
+.xz-now { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 6px; }
+.xz-v { display: block; font: 300 40px/1.05 "Inter Display", sans-serif; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.xz-v small { font-size: 15px; color: var(--ink3); margin-left: 4px; letter-spacing: 0; }
+.xz-l { font-size: 12px; color: var(--ink3); }
+.xz-h { margin: 18px 0 4px; font: 600 12px/1.3 Inter, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--ink3); }
+.sheet .xz-live { margin: 4px 0 0; color: var(--ink); }
+.xz-zones { display: grid; gap: 2px; margin-top: 4px; }
+.xz-z { display: grid; grid-template-columns: 10px 1fr; gap: 10px; padding: 8px 10px; border-radius: 12px; opacity: .72; }
+.xz-z.on { opacity: 1; background: var(--card-hi); }
+.xz-z i { width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; }
+.xz-z b { font-size: 14px; font-weight: 600; }
+.xz-z em { font-style: normal; font-size: 13px; color: var(--ink2); margin-left: 8px; font-variant-numeric: tabular-nums; }
+.xz-z small { display: block; font-size: 12px; color: var(--ink3); line-height: 1.4; margin-top: 1px; }
+.sheet .xz-key { margin: 8px 0 0; font-size: 12px; color: var(--ink3); }
+.xz-key .key { margin-right: 8px; }
+.xz-own { display: flex; gap: 12px; align-items: flex-start; font-size: 13.5px; color: var(--ink2); line-height: 1.45; }
+.xz-own .badge { margin-top: 1px; }
+.xz-cav { margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: var(--card-hi); font-size: 13px; line-height: 1.5; color: var(--ink2); }
+.xz-cav b { display: block; margin-bottom: 2px; color: var(--ink); }
+.sheet .xz-cite { margin: 12px 0 0; font-size: 11.5px; color: var(--ink3); line-height: 1.45; }
+.sheet h4 + p { margin-top: 2px; }
 
 /* sheet */
 .sheet-wrap { position: fixed; inset: 0; z-index: 120; }

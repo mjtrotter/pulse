@@ -1,11 +1,11 @@
 // Night: last night by default, any earlier night from the strip. Recovery gauge, sleep and deep+REM minis,
 // a plain-language summary, the trigger-based question, and last night's numbers (charts live in drill-downs).
-import { tempC } from "../core/units.js?v=20260925225520";
-import { MIN_USUAL, median, sd } from "./stats.js?v=20260925225520";
-import { expOf, M } from "./drill.js?v=20260925225520";
-import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tUnit, uid, usualOf, vital } from "./kit.js?v=20260925225520";
+import { tempC } from "../core/units.js?v=20261005164817";
+import { MIN_USUAL, median, OTHER, otherTexts, otherKey, sd, TAGS } from "./stats.js?v=20261005164817";
+import { expOf, M } from "./drill.js?v=20261005164817";
+import { ampm, arcPath, cap1, clock, css, D, DAYS, empty, esc, glow, glowDef, gauge, header, hm, isLatest, mini, nightDates, nightName, S, sc, short, sign, smooth, smoothRuns, stageColor, stateOf, st, syncChip, tDelta, thatNight, tUnit, uid, usualOf, vital } from "./kit.js?v=20261005164817";
 
-const ASK = [{ key: "alcohol", label: "Alcohol" }, { key: "caffeine", label: "Late caffeine" }, { key: "stress", label: "Stress" }, { key: "sick", label: "Feeling ill" }];
+const ASK = [...TAGS.filter((t) => !t.auto), { key: "sick", label: "Feeling ill" }];
 
 function strip() {
   const idx = D.nights.slice(-21);
@@ -61,7 +61,7 @@ function hero() {
     <p class="summary">${h1}<span class="why">${why}</span></p></div>`;
 }
 function prompt() {
-  const h = D.last, known = [...["alcohol", "caffeine", "stress"].filter((k) => h.t[k]).map((k) => ASK.find((a) => a.key === k).label), ...(h.sick ? ["Feeling ill"] : [])];
+  const h = D.last, known = [...ASK.filter((a) => a.key !== "sick" && h.t[a.key]).map((a) => esc(a.label)), ...(h.other ?? []).map(esc), ...(h.sick ? ["Feeling ill"] : [])];
   const auto = h.t.workout && h.lateWorkoutAt != null ? `<span class="auto">Late workout detected · ${ampm(h.lateWorkoutAt)}</span>` : "";
   if (h.asked) return `<div class="noted rise" style="--i:2"><i>✓</i><span>You noted: <b>${known.length ? known.join(" · ") : "nothing unusual"}</b>${h.answer?.via === "checkin" ? "<em>check-in</em>" : ""}</span><button class="link" data-undo="${esc(h.date)}">Change</button>${auto}</div>`;
   if (!h.trig.length && !h.checkIn) return auto ? `<div class="noted rise" style="--i:2">${auto}</div>` : "";
@@ -69,8 +69,12 @@ function prompt() {
   const txt = reasons.length ? `${cap1(thatNight())}, ${reasons.length > 1 ? `${reasons.slice(0, -1).join(", ")} and ${reasons[reasons.length - 1]}` : reasons[0]}. Anything that might explain it?`
     : `A quick check-in about ${thatNight()}. Pulse asks on a few ordinary nights too, so it can tell what really moves your numbers.`;
   const dr = st.draft;
+  // Typed "Other" texts: this draft's first, then ones used before (one tap, so the spelling matches exactly).
+  const typed = [...dr].filter((k) => k.startsWith(OTHER)).map((k) => k.slice(OTHER.length));
+  const others = [...new Set([...typed, ...otherTexts(D.hist).slice(0, 6)])];
   return `<div class="card prompt rise" style="--i:2" id="prompt"><p>${txt}</p>
-    <div class="chips">${ASK.map((t) => `<button class="chip ${dr.has(t.key) ? "on" : ""}" data-draft="${t.key}">${t.label}</button>`).join("")}</div>
+    <div class="chips">${ASK.map((t) => `<button class="chip ${dr.has(t.key) ? "on" : ""}" data-draft="${t.key}">${t.label}</button>`).join("")}${others.map((t) => `<button class="chip ${dr.has(otherKey(t)) ? "on" : ""}" data-draft="${esc(otherKey(t))}">${esc(t)}</button>`).join("")}</div>
+    <form class="other" data-form="other" autocomplete="off"><input name="other" type="text" maxlength="40" placeholder="Other: type anything (e.g. spicy dinner)" aria-label="Other" enterkeyhint="done"><button class="chip" type="submit">Add</button></form>
     <div class="p-act"><button class="chip ghost" data-answer="none">Nothing unusual</button><button class="chip solid" data-answer="save" ${dr.size ? "" : "disabled"}>Save</button></div>${auto ? `<div class="p-auto">${auto}</div>` : ""}</div>`;
 }
 const spark14 = (k, color) => {

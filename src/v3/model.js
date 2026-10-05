@@ -1,18 +1,18 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20260925225520";
-import { dayOf, toMs } from "../core/time.js?v=20260925225520";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20260925225520";
-import { detectWorkouts } from "../analytics/workouts.js?v=20260925225520";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20260925225520";
-import { stepGoal } from "../analytics/scores.js?v=20260925225520";
-import { ASK_RATE, dateDraw, median, triggers } from "./stats.js?v=20260925225520";
-import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20260925225520";
-import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20260925225520";
-import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20260925225520";
-import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20260925225520";
-import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20260925225520";
+import * as db from "../core/db.js?v=20261005164817";
+import { dayOf, toMs } from "../core/time.js?v=20261005164817";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20261005164817";
+import { detectWorkouts } from "../analytics/workouts.js?v=20261005164817";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20261005164817";
+import { stepGoal } from "../analytics/scores.js?v=20261005164817";
+import { ASK_RATE, cleanOther, dateDraw, median, otherKey, triggers } from "./stats.js?v=20261005164817";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20261005164817";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20261005164817";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20261005164817";
+import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20261005164817";
+import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20261005164817";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
@@ -35,11 +35,12 @@ export async function buildModel(store, profile) {
     const prev = hist[i - 1];
     h.stepsPrev = prev?.steps ?? null;
     const late = (prev?.workouts ?? []).find((w) => minOfDay(w.start) >= 19 * 60);
-    h.t = { alcohol: false, caffeine: false, stress: false, workout: !!late && h.hasNight };
+    h.t = { alcohol: false, caffeine: false, late_food: false, stress: false, workout: !!late && h.hasNight };
     h.lateWorkoutAt = late ? minOfDay(late.start) : null;
     const priorT = hist.slice(Math.max(0, i - 28), i).map((p) => p.tempC).filter((v) => v != null);
     h.tdev = h.tempC != null && priorT.length >= 3 ? h.tempC - median(priorT) : null;
     h.sick = false;
+    h.other = [];
   });
   // Answers the person gave (from prompts), then what would trigger a question for each night.
   hist.forEach((h, i) => {
@@ -48,6 +49,8 @@ export async function buildModel(store, profile) {
     h.checkIn = h.hasNight && !h.trig.length && dateDraw(h.date) < ASK_RATE;
     if (a) {
       for (const k of a.tags ?? []) if (k === "sick") h.sick = true; else if (k in h.t) h.t[k] = true;
+      h.other = [...new Set((a.other ?? []).map(cleanOther).filter(Boolean))];
+      for (const t of h.other) h.t[otherKey(t)] = true;
       h.asked = true; h.answered = true; h.answer = a;
       h.w = a.via === "checkin" ? 1 / ASK_RATE : 1;
     } else { h.asked = false; h.w = h.trig.length ? 1 : 1 / ASK_RATE; }

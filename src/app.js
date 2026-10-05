@@ -1,24 +1,26 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20260925225520";
-import * as db from "./core/db.js?v=20260925225520";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20260925225520";
-import { stamp } from "./core/time.js?v=20260925225520";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20260925225520";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20260925225520";
-import { scoreDays } from "./analytics/scores.js?v=20260925225520";
-import { mergeLabPanel } from "./analytics/labs.js?v=20260925225520";
-import { buildModel } from "./v3/model.js?v=20260925225520";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20260925225520";
-import { drill, M } from "./v3/drill.js?v=20260925225520";
-import { today } from "./v3/today.js?v=20260925225520";
-import { night } from "./v3/night.js?v=20260925225520";
-import { trends } from "./v3/trends.js?v=20260925225520";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20260925225520";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20260925225520";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20260925225520";
-import { advSheet } from "./v3/advanced.js?v=20260925225520";
-import { cycleView } from "./v3/cycleui.js?v=20260925225520";
+import { Band } from "./core/ble.js?v=20261005164817";
+import * as db from "./core/db.js?v=20261005164817";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261005164817";
+import { stamp } from "./core/time.js?v=20261005164817";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261005164817";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261005164817";
+import { scoreDays } from "./analytics/scores.js?v=20261005164817";
+import { mergeLabPanel } from "./analytics/labs.js?v=20261005164817";
+import { buildModel } from "./v3/model.js?v=20261005164817";
+import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261005164817";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261005164817";
+import { drill, M } from "./v3/drill.js?v=20261005164817";
+import { today } from "./v3/today.js?v=20261005164817";
+import { night } from "./v3/night.js?v=20261005164817";
+import { trends } from "./v3/trends.js?v=20261005164817";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261005164817";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20261005164817";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261005164817";
+import { advSheet } from "./v3/advanced.js?v=20261005164817";
+import { explainSheet } from "./v3/explain.js?v=20261005164817";
+import { cycleView } from "./v3/cycleui.js?v=20261005164817";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -244,7 +246,7 @@ function showSheet(kind) {
   closeSheet();
   const s = document.createElement("div");
   s.className = "sheet-wrap";
-  s.innerHTML = `<div class="sheet-bg" data-sheetclose></div><div class="sheet" role="dialog" aria-modal="true">${kind === "labreview" ? labReviewSheet(st.labDraft ?? {}) : kind.startsWith("adv:") ? advSheet(kind.slice(4)) : sheet(kind, ctx)}</div>`;
+  s.innerHTML = `<div class="sheet-bg" data-sheetclose></div><div class="sheet" role="dialog" aria-modal="true">${kind === "labreview" ? labReviewSheet(st.labDraft ?? {}) : kind.startsWith("explain:") ? (explainSheet(kind.slice(8)) ?? "<p>No guide for this yet.</p>") : kind.startsWith("adv:") ? (explainSheet(kind.slice(4)) ?? advSheet(kind.slice(4))) : sheet(kind, ctx)}</div>`;
   document.body.append(s);
   requestAnimationFrame(() => s.classList.add("on"));
 }
@@ -351,7 +353,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20260925225520");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261005164817");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -377,6 +379,8 @@ document.addEventListener("click", async (e) => {
   const t = e.target, on = (sel) => t.closest(sel);
   if (on("[data-sheetclose]")) { closeSheet(); return; }
   if (on(".sheet")) return;
+  // "How to read this": any tile or row carrying data-explain (works inside the recording and drill-down views too)
+  const xp = on("[data-explain]"); if (xp) { showSheet(`explain:${xp.dataset.explain}`); return; }
   // band connection: must call connect() synchronously from the tap
   if (on("[data-syncchip]") || on("[data-connect]")) { if (ctx.band?.connected) sync(); else if (ctx.conn !== "connecting") connect(); return; }
   if (on("[data-obconnect]")) { const ok = await connect(); if (ok) { if (ctx.profile.name && !ctx.band.name.includes(ctx.profile.name.slice(0, 12))) await ctx.band.rename(ctx.profile.name).catch(() => {}); await ctx.setProfile({ ...ctx.profile, onboarded: true }); toast("Band connected and synced"); render(); } return; }
@@ -421,8 +425,18 @@ document.addEventListener("click", async (e) => {
   // prompts
   const d = on("[data-draft]"); if (d) { const k = d.dataset.draft; st.draft.has(k) ? st.draft.delete(k) : st.draft.add(k); d.classList.toggle("on"); const sv = $("[data-answer=save]"); if (sv) sv.disabled = !st.draft.size; return; }
   const an = on("[data-answer]");
-  if (an) { const h = D.last; await db.put(ctx.store, "tags", { date: h.date, tag: "night", tags: an.dataset.answer === "none" ? [] : [...st.draft], via: h.trig?.length ? "trigger" : "checkin", t: stamp() }); st.draft.clear(); invalidate(); await stay(); return; }
-  const un = on("[data-undo]"); if (un) { await db.remove(ctx.store, "tags", [un.dataset.undo, "night"]); invalidate(); await stay(); return; }
+  if (an) {
+    const h = D.last, keys = an.dataset.answer === "none" ? [] : [...st.draft];
+    await db.put(ctx.store, "tags", { date: h.date, tag: "night", tags: keys.filter((k) => !k.startsWith(OTHER)), other: keys.filter((k) => k.startsWith(OTHER)).map((k) => k.slice(OTHER.length)), via: h.trig?.length ? "trigger" : "checkin", t: stamp() }); st.draft.clear(); invalidate(); await stay(); return;
+  }
+  const un = on("[data-undo]");
+  if (un) {
+    // Changing an answer starts from what was saved, so a typed "Other" isn't lost.
+    const h = D.last, was = h?.date === un.dataset.undo ? h : null;
+    st.draft.clear();
+    if (was) { for (const k of Object.keys(was.t)) if (was.t[k] && k !== "workout") st.draft.add(k); if (was.sick) st.draft.add("sick"); }
+    await db.remove(ctx.store, "tags", [un.dataset.undo, "night"]); invalidate(); await stay(); return;
+  }
   if (on("[data-gonight]")) { st.sel = null; await setTab("night"); setTimeout(() => $("#prompt")?.scrollIntoView({ behavior: "smooth", block: "center" }), 350); return; }
   const nb = on("[data-night]"); if (nb) { const i = +nb.dataset.night; st.sel = i; st.draft.clear(); await render(); scrollTo(0, 0); return; }
   const tb = on("[data-tab]"); if (tb) { setTab(tb.dataset.tab); return; }
@@ -461,6 +475,11 @@ document.addEventListener("submit", async (e) => {
   const f = e.target.closest("form[data-form]"); if (!f) return;
   e.preventDefault();
   const kind = f.dataset.form;
+  if (kind === "other") {
+    const text = cleanOther(f.other.value);
+    if (text) { st.draft.add(otherKey(text)); await stay(); }
+    return;
+  }
   if (kind === "bp") {
     const s = parseInt(f.sys.value, 10), d = parseInt(f.dia.value, 10), p = parseInt(f.pulse.value, 10);
     if (!(s >= 70 && s <= 260 && d >= 30 && d <= 160 && d < s)) { toast("That reading looks off. Check the top and bottom numbers."); return; }
@@ -599,7 +618,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20260925225520");
+    const { seedDemo } = await import("./demo.js?v=20261005164817");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

@@ -8,6 +8,11 @@ export const mean = (v) => { const a = nums(v); return a.length ? a.reduce((s, x
 export const sd = (v) => { const a = nums(v); if (a.length < 2) return null; const m = mean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1)); };
 export const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 
+export const decade = (age) => Math.min(70, Math.max(20, Math.floor((age ?? 40) / 10) * 10));
+// Approximate age bands for overnight RMSSD (ms): median ± ~1 SD from short-term and nocturnal adult
+// samples (Nunan 2010; Voss 2015; Tegegne 2020). Placeholders until the published norm tables are pulled.
+export const HRV_NORM = { 20: [26, 74], 30: [21, 60], 40: [17, 48], 50: [14, 40], 60: [12, 34], 70: [10, 30] };
+
 export const MIN_TAGGED = 8; // tagged nights before a tag's effect is shown
 export const ASK_RATE = 0.25; // share of ordinary nights that get a one-tap check-in
 export const MIN_USUAL = 5; // nights before "your usual" exists
@@ -60,9 +65,24 @@ export function expected(hist, get, sleepH) {
 export const TAGS = [
   { key: "alcohol", label: "Alcohol" },
   { key: "caffeine", label: "Late caffeine" },
+  { key: "late_food", label: "Late food" },
   { key: "stress", label: "Stress" },
   { key: "workout", label: "Late workout", auto: true }, // detected from heart rate, never asked
 ];
+
+// "Other": whatever the person typed. Each distinct text is its own tag, matched exactly (trimmed only: case and
+// spelling count), so the same words pool across nights. Stored on the night's tag row as `other: [text]`;
+// in the model each text is also a flag in h.t under "other:<text>", so it flows through drivers() like any tag.
+export const OTHER = "other:";
+export const cleanOther = (s) => String(s ?? "").trim().slice(0, 40);
+export const otherKey = (text) => OTHER + text;
+export const tagDef = (key) => TAGS.find((t) => t.key === key) ?? (key.startsWith(OTHER) ? { key, label: key.slice(OTHER.length), other: true } : null);
+/** Distinct "Other" texts used on at least `min` answered nights, most used first (ties alphabetical). */
+export function otherTexts(hist, min = 1) {
+  const n = new Map();
+  for (const h of hist) if (h.asked) for (const t of h.other ?? []) n.set(t, (n.get(t) ?? 0) + 1);
+  return [...n].filter(([, c]) => c >= min).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([t]) => t);
+}
 
 /**
  * Honest drivers. Continuous inputs use your last 120 nights. Asked tags use only the nights Pulse asked
@@ -75,7 +95,9 @@ export function drivers(hist, get, list) {
   const ok = (h) => !h.sick && get(h) != null;
   const recent = hist.slice(-121, -1).filter((h) => ok(h) && h.sleepH != null);
   const asked = hist.filter((h) => h.asked && ok(h) && h.sleepH != null), seen = hist.filter((h) => h.hasNight && ok(h) && h.sleepH != null);
-  for (const d of list) {
+  // Typed "Other" texts join the tag drivers once used on 2+ nights (a one-off can never reach MIN_TAGGED).
+  const extra = list.some((d) => d !== "sleep" && d !== "steps") ? otherTexts(hist, 2).map(otherKey) : [];
+  for (const d of [...list, ...extra]) {
     if (d === "sleep" || d === "steps") {
       const rows = d === "sleep" ? recent : recent.filter((h) => h.stepsPrev != null);
       if (rows.length < MIN_MODEL) { out.push({ key: d, label: d === "sleep" ? "1 h less sleep" : "+1,000 steps the day before", n: rows.length, state: "needs", need: MIN_MODEL - rows.length, unit: "nights" }); continue; }
@@ -85,14 +107,14 @@ export function drivers(hist, get, list) {
       out.push({ key: d, label: d === "sleep" ? "1 h less sleep" : "+1,000 steps the day before", note: `${rows.length} ${d === "sleep" ? "nights" : "days"}`, effect: eff, ci: 1.96 * f.se[1], n: rows.length, state: Math.abs(f.beta[1]) > 1.96 * f.se[1] ? "clear" : "unclear" });
       continue;
     }
-    const tag = TAGS.find((t) => t.key === d), rows = tag.auto ? seen : asked;
+    const tag = tagDef(d), rows = tag.auto ? seen : asked;
     const n = rows.filter((h) => h.t[d]).length;
-    if (n < MIN_TAGGED || rows.length - n < 3) { out.push({ key: d, label: tag.label, n, state: "needs", need: Math.max(1, MIN_TAGGED - n), auto: tag.auto, unit: tag.auto ? "detected" : "tagged" }); continue; }
+    if (n < MIN_TAGGED || rows.length - n < 3) { out.push({ key: d, label: tag.label, other: tag.other, n, state: "needs", need: Math.max(1, MIN_TAGGED - n), auto: tag.auto, unit: tag.auto ? "detected" : "tagged" }); continue; }
     const useSleep = list.includes("sleep");
     const f = ols(rows.map((h) => (useSleep ? [1, h.sleepH, h.t[d] ? 1 : 0] : [1, h.t[d] ? 1 : 0])), rows.map(get), tag.auto ? null : rows.map((h) => h.w ?? 1));
     if (!f) continue;
     const k = useSleep ? 2 : 1;
-    out.push({ key: d, label: tag.label, note: `${n} ${tag.auto ? "detected" : "tagged"} nights`, effect: f.beta[k], ci: 1.96 * f.se[k], n, state: Math.abs(f.beta[k]) > 1.96 * f.se[k] ? "clear" : "unclear", auto: tag.auto });
+    out.push({ key: d, label: tag.label, other: tag.other, note: `${n} ${tag.auto ? "detected" : "tagged"} nights`, effect: f.beta[k], ci: 1.96 * f.se[k], n, state: Math.abs(f.beta[k]) > 1.96 * f.se[k] ? "clear" : "unclear", auto: tag.auto });
   }
   const rank = { clear: 0, unclear: 1, needs: 2 };
   return out.sort((a, b) => rank[a.state] - rank[b.state] || Math.abs(b.effect ?? 0) - Math.abs(a.effect ?? 0));

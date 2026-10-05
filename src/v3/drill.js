@@ -1,18 +1,16 @@
 // The metric catalog and the full-screen drill-down every tile opens: headline value, bands (population,
 // your usual, what your sleep predicts), a plain-language read, then four views: the night/day itself,
 // Over time, Your range and What affects it.
-import { tempC } from "../core/units.js?v=20260925225520";
-import { clamp, drivers, expected, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20260925225520";
-import { labContext } from "./labsui.js?v=20260925225520";
-import { nightChannels } from "./nightmon.js?v=20260925225520";
-import { dayMontage, workoutPrompts, workoutsList } from "./daymon.js?v=20260925225520";
-import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20260925225520";
+import { tempC } from "../core/units.js?v=20261005164817";
+import { clamp, decade, drivers, expected, HRV_NORM, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20261005164817";
+import { labContext } from "./labsui.js?v=20261005164817";
+import { nightChannels } from "./nightmon.js?v=20261005164817";
+import { dayMontage, workoutPrompts, workoutsList } from "./daymon.js?v=20261005164817";
+import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20261005164817";
 
-const ALL = ["sleep", "alcohol", "caffeine", "stress", "workout"];
-const decade = (age) => Math.min(70, Math.max(20, Math.floor((age ?? 40) / 10) * 10));
-// Approximate age bands for overnight RMSSD (ms): median ± ~1 SD from short-term and nocturnal adult
-// samples (Nunan 2010; Voss 2015; Tegegne 2020). Placeholders until the published norm tables are pulled.
-const HRV_NORM = { 20: [26, 74], 30: [21, 60], 40: [17, 48], 50: [14, 40], 60: [12, 34], 70: [10, 30] };
+// Metrics with a "How to read this" guide in explain.js.
+const EXPLAINED = new Set(["rhr", "hrv", "breath", "spo2", "temp", "sri", "dip", "cvhr", "ccost"]);
+const ALL = ["sleep", "alcohol", "caffeine", "late_food", "stress", "workout"];
 const decLbl = (age) => (decade(age) >= 70 ? "70+" : `${decade(age)}s`);
 
 export const paceFrac = () => {
@@ -24,25 +22,25 @@ export const paceFrac = () => {
 export const M = {
   recovery: { lc: "recovery score", title: "Recovery", unit: "", color: "--good", get: (h) => h.rec, f: (v) => Math.round(v), better: 1, drivers: ALL, q: 4 },
   sleep: { lc: "sleep", title: "Sleep", unit: "", color: "--sleep", get: (h) => h.sleepH, f: (v) => hm(v), fa: (v) => v.toFixed(1), big: (v) => { const t = Math.round(v * 60); return `${Math.floor(t / 60)}<small>h</small> ${String(t % 60).padStart(2, "0")}<small>m</small>`; },
-    pop: () => ((D.profile.age ?? 40) >= 65 ? [7, 8] : [7, 9]), popLbl: () => `Need (${(D.profile.age ?? 40) >= 65 ? "65+" : "18–64"})`, better: 1, drivers: ["alcohol", "caffeine", "stress", "workout", "steps"], q: 4 },
+    pop: () => ((D.profile.age ?? 40) >= 65 ? [7, 8] : [7, 9]), popLbl: () => `Need (${(D.profile.age ?? 40) >= 65 ? "65+" : "18–64"})`, better: 1, drivers: ["alcohol", "late_food", "caffeine", "stress", "workout", "steps"], q: 4 },
   hrv: { lc: "overnight HRV", title: "Overnight HRV", unit: "ms", color: "--hrv", get: (h) => h.hrv, f: (v) => v.toFixed(0), pop: () => HRV_NORM[decade(D.profile.age)], popLbl: () => `Typical ${decLbl(D.profile.age)} (approx.)`, model: true, better: 1, drivers: ALL, q: 4 },
   rhr: { lc: "resting heart rate", title: "Resting heart rate", unit: "bpm", color: "--heart", get: (h) => h.rhr, f: (v) => v.toFixed(1), fa: (v) => v.toFixed(0), pop: () => (D.profile.sex === "female" ? [51, 73] : [48, 70]), popLbl: () => "Typical asleep", model: true, better: -1, drivers: ALL, q: 5 },
-  breath: { lc: "breathing rate", title: "Breathing rate asleep", unit: "/min", color: "--breath", get: (h) => h.br, f: (v) => v.toFixed(1), pop: () => [12, 20], popLbl: () => "Adults asleep", better: 0, drivers: ["alcohol", "sleep"], q: 3 },
-  spo2: { lc: "oxygen level", title: "Oxygen asleep", unit: "%", color: "--spo2", get: (h) => h.spo2, f: (v) => v.toFixed(0), fa: (v) => v.toFixed(1), pop: () => [95, 100], popLbl: () => "Healthy adults", better: 1, drivers: ["alcohol", "sleep"], q: 3 },
-  temp: { lc: "skin temperature", title: "Skin temperature", unit: "", color: "--temp", get: (h) => (h.tdev == null ? null : tDelta(h.tdev)), f: (v) => `${sign(v)}°`, pop: () => [tDelta(-0.5), tDelta(0.5)], popLbl: () => "Normal swing", better: -1, drivers: ["alcohol", "workout"], q: 4 },
-  timing: { lc: "sleep midpoint", title: "Sleep timing", unit: "", color: "--sleep2", get: (h) => h.mid, f: (v) => clock(v), big: (v) => `${clock(v)}<small>${((v % 1440) + 1440) % 1440 >= 720 ? "PM" : "AM"}</small>`, fd: (v) => `${Math.round(v)} min`, noCv: true, better: 0, drivers: ["alcohol", "caffeine", "stress"], q: 4 },
-  sri: { lc: "sleep regularity", title: "Sleep regularity (SRI)", unit: "", color: "--sleep2", get: (h) => h.sri7, f: (v) => Math.round(v).toString(), better: 1, drivers: ["alcohol", "caffeine", "stress"], q: 3 },
-  dip: { lc: "night-time heart-rate dip", title: "Night-time heart-rate dip", unit: "%", color: "--heart", get: (h) => h.dipPct, f: (v) => v.toFixed(0), better: 1, drivers: ["alcohol", "workout", "sleep"], q: 2, xp: true },
-  cvhr: { lc: "cyclic heart-rate index", title: "Cyclic heart-rate pattern", unit: "/h", color: "--breath", get: (h) => h.cvhrIndex, f: (v) => v.toFixed(1), better: -1, drivers: ["alcohol", "sleep"], q: 1, xp: true },
+  breath: { lc: "breathing rate", title: "Breathing rate asleep", unit: "/min", color: "--breath", get: (h) => h.br, f: (v) => v.toFixed(1), pop: () => [12, 20], popLbl: () => "Adults asleep", better: 0, drivers: ["alcohol", "late_food", "sleep"], q: 3 },
+  spo2: { lc: "oxygen level", title: "Oxygen asleep", unit: "%", color: "--spo2", get: (h) => h.spo2, f: (v) => v.toFixed(0), fa: (v) => v.toFixed(1), pop: () => [95, 100], popLbl: () => "Healthy adults", better: 1, drivers: ["alcohol", "late_food", "sleep"], q: 3 },
+  temp: { lc: "skin temperature", title: "Skin temperature", unit: "", color: "--temp", get: (h) => (h.tdev == null ? null : tDelta(h.tdev)), f: (v) => `${sign(v)}°`, pop: () => [tDelta(-0.5), tDelta(0.5)], popLbl: () => "Normal swing", better: -1, drivers: ["alcohol", "late_food", "workout"], q: 4 },
+  timing: { lc: "sleep midpoint", title: "Sleep timing", unit: "", color: "--sleep2", get: (h) => h.mid, f: (v) => clock(v), big: (v) => `${clock(v)}<small>${((v % 1440) + 1440) % 1440 >= 720 ? "PM" : "AM"}</small>`, fd: (v) => `${Math.round(v)} min`, noCv: true, better: 0, drivers: ["alcohol", "late_food", "caffeine", "stress"], q: 4 },
+  sri: { lc: "sleep regularity", title: "Sleep regularity (SRI)", unit: "", color: "--sleep2", get: (h) => h.sri7, f: (v) => Math.round(v).toString(), better: 1, drivers: ["alcohol", "late_food", "caffeine", "stress"], q: 3 },
+  dip: { lc: "night-time heart-rate dip", title: "Night-time heart-rate dip", unit: "%", color: "--heart", get: (h) => h.dipPct, f: (v) => v.toFixed(0), better: 1, drivers: ["alcohol", "late_food", "workout", "sleep"], q: 2, xp: true },
+  cvhr: { lc: "cyclic heart-rate index", title: "Cyclic heart-rate pattern", unit: "/h", color: "--breath", get: (h) => h.cvhrIndex, f: (v) => v.toFixed(1), better: -1, drivers: ["alcohol", "late_food", "sleep"], q: 1, xp: true },
   ccost: { day: true, lc: "cardiac cost of walking", title: "Cardiac cost of walking", unit: "bpm", color: "--heart", get: (h) => h.ccost, today: () => D.latest?.ccost ?? null, frac: () => 1, f: (v) => v.toFixed(0), better: -1, drivers: ["sleep", "alcohol"], q: 2, xp: true },
-  activity: { day: true, lc: "activity", title: "Activity", unit: "%", color: "--act", get: (h) => (h.steps != null ? (100 * h.steps) / D.goal : null), today: () => (D.T ? (100 * D.T.steps) / D.goal : null), frac: paceFrac, f: (v) => Math.round(v).toString(), pop: () => [100, 150], popLbl: () => "Daily goal", better: 1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
+  activity: { day: true, lc: "activity", title: "Activity", unit: "%", color: "--act", get: (h) => (h.steps != null ? (100 * h.steps) / D.goal : null), today: () => (D.T ? (100 * D.T.steps) / D.goal : null), frac: paceFrac, f: (v) => Math.round(v).toString(), pop: () => [100, 150], popLbl: () => "Daily goal", better: 1, drivers: ["sleep", "alcohol", "late_food", "stress"], q: 5 },
   spo2d: { day: true, lc: "daytime oxygen", title: "Oxygen (daytime)", unit: "%", color: "--spo2", get: (h) => h.spo2Day, today: () => D.T?.latest?.spo2?.v ?? null, frac: () => 1, f: (v) => v.toFixed(0), fa: (v) => v.toFixed(1), pop: () => [95, 100], popLbl: () => "Healthy adults", better: 1, drivers: ["sleep"], q: 3, vit: "spo2" },
-  tempd: { day: true, lc: "skin temperature", title: "Skin temperature (daytime)", unit: "", color: "--temp", get: (h) => (h.tempDay == null ? null : tempC(h.tempDay)), today: () => (D.T?.latest?.temp ? tempC(D.T.latest.temp.v) : null), frac: () => 1, f: (v) => `${v.toFixed(1)}°`, better: 0, drivers: ["alcohol", "stress"], q: 3, vit: "temp" },
-  hrvd: { day: true, lc: "daytime HRV", title: "HRV spot checks (daytime)", unit: "ms", color: "--hrv", get: (h) => h.hrvDay, today: () => D.T?.latest?.hrv?.v ?? null, frac: () => 1, f: (v) => v.toFixed(0), better: 1, drivers: ["sleep", "alcohol", "stress"], q: 2, vit: "hrv" },
+  tempd: { day: true, lc: "skin temperature", title: "Skin temperature (daytime)", unit: "", color: "--temp", get: (h) => (h.tempDay == null ? null : tempC(h.tempDay)), today: () => (D.T?.latest?.temp ? tempC(D.T.latest.temp.v) : null), frac: () => 1, f: (v) => `${v.toFixed(1)}°`, better: 0, drivers: ["alcohol", "late_food", "stress"], q: 3, vit: "temp" },
+  hrvd: { day: true, lc: "daytime HRV", title: "HRV spot checks (daytime)", unit: "ms", color: "--hrv", get: (h) => h.hrvDay, today: () => D.T?.latest?.hrv?.v ?? null, frac: () => 1, f: (v) => v.toFixed(0), better: 1, drivers: ["sleep", "alcohol", "late_food", "stress"], q: 2, vit: "hrv" },
   breathd: { day: true, lc: "daytime breathing rate", title: "Breathing (daytime)", unit: "/min", color: "--breath", get: (h) => h.brDay, today: () => D.T?.latest?.br?.v ?? null, frac: () => 1, f: (v) => v.toFixed(1), better: 0, drivers: ["sleep"], q: 2, vit: "br" },
-  stressd: { day: true, lc: "band stress score", title: "Stress (band score)", unit: "", color: "--watch", get: (h) => h.stressDay, today: () => D.T?.latest?.stress?.v ?? null, frac: () => 1, f: (v) => Math.round(v).toString(), better: -1, drivers: ["sleep", "alcohol", "stress"], q: 1, xp: true, vit: "stress" },
-  steps: { day: true, lc: "steps", title: "Steps", unit: "", color: "--steps", get: (h) => h.steps, today: () => D.T?.steps, frac: paceFrac, f: (v) => Math.round(v).toLocaleString(), pop: () => [D.goal, D.goal * 1.5], popLbl: () => "Daily goal", better: 1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
-  hrday: { day: true, lc: "daytime heart rate", title: "Daytime heart rate", unit: "bpm", color: "--heart", get: (h) => h.dayHr, today: () => D.T?.dayHr, frac: () => 1, f: (v) => v.toFixed(0), pop: () => [60, 100], popLbl: () => "Adults at rest", better: -1, drivers: ["sleep", "alcohol", "stress"], q: 5 },
+  stressd: { day: true, lc: "band stress score", title: "Stress (band score)", unit: "", color: "--watch", get: (h) => h.stressDay, today: () => D.T?.latest?.stress?.v ?? null, frac: () => 1, f: (v) => Math.round(v).toString(), better: -1, drivers: ["sleep", "alcohol", "late_food", "stress"], q: 1, xp: true, vit: "stress" },
+  steps: { day: true, lc: "steps", title: "Steps", unit: "", color: "--steps", get: (h) => h.steps, today: () => D.T?.steps, frac: paceFrac, f: (v) => Math.round(v).toLocaleString(), pop: () => [D.goal, D.goal * 1.5], popLbl: () => "Daily goal", better: 1, drivers: ["sleep", "alcohol", "late_food", "stress"], q: 5 },
+  hrday: { day: true, lc: "daytime heart rate", title: "Daytime heart rate", unit: "bpm", color: "--heart", get: (h) => h.dayHr, today: () => D.T?.dayHr, frac: () => 1, f: (v) => v.toFixed(0), pop: () => [60, 100], popLbl: () => "Adults at rest", better: -1, drivers: ["sleep", "alcohol", "late_food", "stress"], q: 5 },
   mvpa: { day: true, lc: "brisk minutes", title: "Brisk minutes", unit: "min", color: "--act", get: (h) => h.mvpa, today: () => D.T?.mvpa, frac: paceFrac, f: (v) => Math.round(v).toString(), pop: () => [150 / 7, 300 / 7], popLbl: () => "Guideline pace", better: 1, drivers: ["sleep", "stress"], q: 4 },
   light: { day: true, lc: "light activity", title: "Light activity", unit: "min", color: "--act2", get: (h) => h.lightAct, today: () => D.T?.light, frac: paceFrac, f: (v) => Math.round(v).toString(), better: 1, drivers: ["sleep", "stress"], q: 4 },
   moveH: { day: true, lc: "moving hours", title: "Moving hours", unit: "h", color: "--breath", get: (h) => h.moveH, today: () => D.T?.moveH, frac: () => clamp((D.T.nowH - 7) / 15, 0.05, 1), f: (v) => Math.round(v).toString(), fa: (v) => v.toFixed(1), better: 1, drivers: ["sleep", "stress"], q: 4 },
@@ -116,6 +114,7 @@ export function drill(key, backLabel) {
     <div class="m-hero"><div class="m-big">${cur == null ? "—" : m.big ? m.big(cur) : `${m.f(cur)}<small>${m.unit}</small>`}</div><div class="m-meta">${meta}</div></div>
     ${bandsHtml}
     <div class="ctx">${ctxText(key, B)}</div>
+    ${EXPLAINED.has(key) ? `<button class="xlink xblock" data-explain="${key}">How to read this number ›</button>` : ""}
     ${D.profile?.sex === "female" && D.last?.luteal && !M[key].day && ["temp", "rhr", "hrv", "recovery"].includes(key) ? `<div class="labctx"><span class="lbl">Cycle</span><p>This was in your luteal phase, when skin temperature normally runs about 0.3 °C higher and resting heart rate about 2 bpm higher (Shilaih 2017, 2018). Pulse doesn't count that rise as a sign of illness.</p></div>` : ""}
     ${labContext(key)}
     <div class="seg">${views.map(([k, l]) => `<button data-view="${k}" class="${st.view === k ? "on" : ""}">${l}</button>`).join("")}</div>
@@ -314,8 +313,9 @@ function viewNow(key, B) {
     + `<p class="note">${key === "rhr" ? "Heart rate minute by minute" : key === "temp" ? `Skin temperature (${tUnit()})` : key === "spo2" ? "Each spot reading" : "Each pulse recording"} across the night${nt.stages ? ", over your sleep stages" : ""}${key === "hrv" ? ". Hollow dots were dropped for movement" : ""}${you && key !== "temp" && key !== "spo2" ? "; the shaded band is your usual" : ""}.</p>`;
 }
 
-function tagColor(k) { return css({ alcohol: "--bad", caffeine: "--watch", stress: "--breath", workout: "--act" }[k]); }
-const tagsKnown = (h) => TAGS.filter((t) => (t.auto ? h.hasNight : h.asked) && h.t?.[t.key]);
+function tagColor(k) { return css({ alcohol: "--bad", caffeine: "--watch", late_food: "--temp", stress: "--breath", workout: "--act", other: "--ink2" }[k]); }
+// Ticks and tooltips: the known tags, plus one "other" tick whose label is what was typed.
+const tagsKnown = (h) => [...TAGS.filter((t) => (t.auto ? h.hasNight : h.asked) && h.t?.[t.key]), ...(h.asked && h.other?.length ? [{ key: "other", label: h.other.join(", ") }] : [])];
 function viewTime(key, B) {
   const { m } = B, W0 = 340, col = css(m.color), id = uid("v"), sid = uid("s"), pop = popOf(m), fd = m.fd ?? fa(m);
   const end = m.day ? D.hist.length - 2 : D.i, span = +st.agg, startI = Math.max(0, end - span + 1);
@@ -347,13 +347,13 @@ function viewTime(key, B) {
   for (const lab of D.labs ?? []) { const j = win.findIndex((h) => h.date >= lab.date); if (j > 0 || (j === 0 && win[0].date === lab.date)) body += `<line x1="${x(j)}" x2="${x(j)}" y1="12" y2="${H - 22}" stroke="${css("--ink")}" stroke-opacity=".35" stroke-dasharray="2 3"/><text x="${x(j)}" y="9" text-anchor="middle" class="axis">labs</text>`; }
   const step = win.length > 100 ? 91 : win.length > 45 ? 30 : win.length > 14 ? 7 : Math.max(1, Math.ceil(win.length / 4));
   for (let j = win.length - 1; j >= 0; j -= step) body += `<text x="${x(j)}" y="${H - 4}" text-anchor="middle" class="axis">${MON[win[j].d.getMonth()]} ${win[j].d.getDate()}</text>`;
-  const sp = pts.map((p) => [x(p[0]), y(p[1]), `${m.day ? dname(p[2].d) : `${nightName(p[2])} ${MON[p[2].d.getMonth()]} ${p[2].d.getDate()}`} · <b>${m.f(p[1])} ${m.unit}</b>${tagsKnown(p[2]).map((t) => ` · ${t.label}`).join("")}${p[2].sick ? " · Sick" : ""}`]);
+  const sp = pts.map((p) => [x(p[0]), y(p[1]), `${m.day ? dname(p[2].d) : `${nightName(p[2])} ${MON[p[2].d.getMonth()]} ${p[2].d.getDate()}`} · <b>${m.f(p[1])} ${m.unit}</b>${tagsKnown(p[2]).map((t) => ` · ${esc(t.label)}`).join("")}${p[2].sick ? " · Sick" : ""}`]);
   const a = ser.filter((_, i) => !wk[i]), b = ser.filter((_, i) => wk[i]), dW = a.length && b.length ? mean(b) - mean(a) : null, unitWord = m.day ? "days" : "nights";
   const s = sd(ser), mu = mean(ser);
   const spread = m.noCv ? `<div><b>${s != null ? `±${fd(s)}` : "—"}</b><span>${m.day ? "day" : "night"}-to-${m.day ? "day" : "night"} spread</span></div>` : `<div><b>${s != null && mu ? `${((100 * s) / Math.abs(mu)).toFixed(0)}%` : "—"}</b><span>${m.day ? "day" : "night"}-to-${m.day ? "day" : "night"} CV</span></div>`;
   return scrubbable(sid, W0, H, body, sp, `Dots are ${unitWord}${pts.length >= 7 ? `; the line is the 7-${m.day ? "day" : "night"} average` : ""}.`)
     + `<div class="stat3"><div><b>${fa(m)(mu)}</b><span>average</span></div>${spread}<div><b>${dW == null ? "—" : m.noCv ? `${sign(dW, 0)} min` : sign(dW, m.day ? 0 : 1)}</b><span>weekend vs weekday</span></div></div>
-      <p class="note">${m.day ? "Complete days only; today is still in progress. " : ""}${you2 ? "Colored band: your usual. " : ""}${pop && !m.day ? `Grey: ${popLbl(m).toLowerCase()}.` : ""}${st.showTags ? " Tag ticks: " + TAGS.map((t) => `<span class="key" style="--k:${tagColor(t.key)}">${t.label.toLowerCase()}</span>`).join(" ") : ""}</p>`;
+      <p class="note">${m.day ? "Complete days only; today is still in progress. " : ""}${you2 ? "Colored band: your usual. " : ""}${pop && !m.day ? `Grey: ${popLbl(m).toLowerCase()}.` : ""}${st.showTags ? " Tag ticks: " + [...TAGS, { key: "other", label: "Other" }].map((t) => `<span class="key" style="--k:${tagColor(t.key)}">${t.label.toLowerCase()}</span>`).join(" ") : ""}</p>`;
 }
 function viewRange(key, B) {
   const { m } = B, W0 = 340, col = css(m.color), pop = popOf(m), f = fa(m), fd = m.fd ?? f;
@@ -385,10 +385,10 @@ function viewAffects(key, B) {
   const row = (d) => {
     if (d.state === "needs") {
       const total = d.unit === "nights" ? MIN_MODEL : MIN_TAGGED, have = Math.min(d.n, total), cells = Math.min(total, 10), on = Math.round((have / total) * cells);
-      return `<div class="drv needs"><span>${d.label}<span class="n">${d.n} of ${total} ${d.unit === "nights" ? "nights" : `${d.unit} nights`}</span></span><span class="meter">${Array.from({ length: cells }, (_, i) => `<i class="${i < on ? "on" : ""}"></i>`).join("")}</span><span class="e muted">${d.need} more</span></div>`;
+      return `<div class="drv needs"><span>${esc(d.label)}<span class="n">${d.n} of ${total} ${d.unit === "nights" ? "nights" : `${d.unit} nights`}</span></span><span class="meter">${Array.from({ length: cells }, (_, i) => `<i class="${i < on ? "on" : ""}"></i>`).join("")}</span><span class="e muted">${d.need} more</span></div>`;
     }
     const g = good(d.effect), fill = d.state === "clear" ? css(g == null ? "--ink2" : g ? "--good" : "--bad") : css("--ink3");
-    return `<div class="drv ${d.state}"><span>${d.label}<span class="n">${d.note}${d.state === "unclear" ? " · no clear effect yet" : ""}</span></span>${S(120, 14, `<line x1="60" x2="60" y1="0" y2="14" stroke="${css("--grid")}"/><line x1="${xs(d.effect - d.ci)}" x2="${xs(d.effect + d.ci)}" y1="7" y2="7" stroke="${css("--ink3")}" stroke-width="1.5"/>${d.state === "clear" ? `<rect x="${Math.min(60, xs(d.effect))}" y="2.5" width="${Math.abs(xs(d.effect) - 60)}" height="9" rx="3" fill="${fill}" opacity=".9"/>` : `<circle cx="${xs(d.effect)}" cy="7" r="3.5" fill="none" stroke="${fill}" stroke-width="1.5"/>`}`)}<span class="e ${d.state === "clear" ? "" : "muted"}">${d.state === "clear" ? `${sign(d.effect, dp)}<small>${unit}</small>` : "±" + d.ci.toFixed(dp)}</span></div>`;
+    return `<div class="drv ${d.state}"><span>${esc(d.label)}<span class="n">${d.note}${d.state === "unclear" ? " · no clear effect yet" : ""}</span></span>${S(120, 14, `<line x1="60" x2="60" y1="0" y2="14" stroke="${css("--grid")}"/><line x1="${xs(d.effect - d.ci)}" x2="${xs(d.effect + d.ci)}" y1="7" y2="7" stroke="${css("--ink3")}" stroke-width="1.5"/>${d.state === "clear" ? `<rect x="${Math.min(60, xs(d.effect))}" y="2.5" width="${Math.abs(xs(d.effect) - 60)}" height="9" rx="3" fill="${fill}" opacity=".9"/>` : `<circle cx="${xs(d.effect)}" cy="7" r="3.5" fill="none" stroke="${fill}" stroke-width="1.5"/>`}`)}<span class="e ${d.state === "clear" ? "" : "muted"}">${d.state === "clear" ? `${sign(d.effect, dp)}<small>${unit}</small>` : "±" + d.ci.toFixed(dp)}</span></div>`;
   };
   let scatter = "";
   if (m.drivers.includes("sleep")) {
