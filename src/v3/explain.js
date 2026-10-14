@@ -3,25 +3,25 @@
 // act. Zones come only from published cut-offs; where none exist (most HRV and wearable-derived measures) the
 // guide says so and judges the number against YOUR OWN usual instead. Rows and tiles open a guide with
 // data-explain="<key>"; the guide reads the current value itself, so callers pass nothing else.
-import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261014192250";
-import { advBody } from "./advanced.js?v=20261014192250";
-import { analyze, analyzed, current } from "./measure.js?v=20261014192250";
-import { bpCategory, bpSummary } from "./bp.js?v=20261014192250";
-import { bandDip } from "./bpui.js?v=20261014192250";
-import { ANALYTES, bmiOf, labLabel, latestLabs, preventResult } from "./labsui.js?v=20261014192250";
-import { LABGUIDE } from "./labguide.js?v=20261014192250";
-import { tierChip, whatMoved } from "./riskui.js?v=20261014192250";
-import { calibrateAt, Z80 } from "../analytics/bpcal.js?v=20261014192250";
-import { bodyIndices } from "../analytics/body.js?v=20261014192250";
-import { metabolicSyndrome } from "../analytics/riskctx.js?v=20261014192250";
-import { sleepNeed } from "../analytics/sleep.js?v=20261014192250";
-import { homeBP, sessions } from "../analytics/homebp.js?v=20261014192250";
-import { toMs } from "../core/time.js?v=20261014192250";
-import { derived } from "../analytics/labs.js?v=20261014192250";
-import { PHENO_AGE_YEARS, PHENO_REF, phenoChange, phenoParts, preventGroups, workings, zonesFor } from "../analytics/labcalc.js?v=20261014192250";
-import { preventBreakdown } from "../analytics/prevent.js?v=20261014192250";
-import { isUS } from "../core/units.js?v=20261014192250";
-import { ampm, clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261014192250";
+import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261014195152";
+import { advBody } from "./advanced.js?v=20261014195152";
+import { analyze, analyzed, current } from "./measure.js?v=20261014195152";
+import { bpCategory, bpSummary } from "./bp.js?v=20261014195152";
+import { bandDip } from "./bpui.js?v=20261014195152";
+import { ANALYTES, bmiOf, labLabel, latestLabs, preventResult } from "./labsui.js?v=20261014195152";
+import { LABGUIDE } from "./labguide.js?v=20261014195152";
+import { tierChip, whatMoved } from "./riskui.js?v=20261014195152";
+import { calibrateAt, Z80 } from "../analytics/bpcal.js?v=20261014195152";
+import { bodyIndices } from "../analytics/body.js?v=20261014195152";
+import { metabolicSyndrome } from "../analytics/riskctx.js?v=20261014195152";
+import { sleepNeed } from "../analytics/sleep.js?v=20261014195152";
+import { homeBP, sessions } from "../analytics/homebp.js?v=20261014195152";
+import { toMs } from "../core/time.js?v=20261014195152";
+import { derived } from "../analytics/labs.js?v=20261014195152";
+import { PHENO_AGE_YEARS, PHENO_REF, phenoChange, phenoParts, preventGroups, workings, zonesFor } from "../analytics/labcalc.js?v=20261014195152";
+import { preventBreakdown } from "../analytics/prevent.js?v=20261014195152";
+import { isUS } from "../core/units.js?v=20261014195152";
+import { ampm, clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261014195152";
 
 const TIER = { good: "Optimal", watch: "Borderline", bad: "Risk" };
 const num = (v) => v != null && Number.isFinite(v);

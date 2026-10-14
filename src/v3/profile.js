@@ -1,10 +1,10 @@
 // Profile: who you are (feeds norms, goals and heart-rate zones), settings, heart risk from labs + home BP,
 // labs and what they imply, the band, your data, and first-run setup. Also the bottom sheets (forms).
-import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261014192250";
-import { mean, sd } from "./stats.js?v=20261014192250";
-import { css, D, esc, header, relMin, st } from "./kit.js?v=20261014192250";
-import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261014192250";
-import { bodyRows } from "./riskui.js?v=20261014192250";
+import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261014195152";
+import { mean, sd } from "./stats.js?v=20261014195152";
+import { css, D, esc, header, relMin, st } from "./kit.js?v=20261014195152";
+import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261014195152";
+import { bodyRows } from "./riskui.js?v=20261014195152";
 
 export const bmiOf = (p) => (p.height && p.weight ? p.weight / (p.height / 100) ** 2 : null);
 
@@ -144,5 +144,5 @@ function bandSlotHint(ctx) {
   const pc = D.advData?.bp?.pace;
   if (!pc) return "";
   const mins = Math.max(0, Math.round((pc.next - Date.now()) / 60e3)), at = new Date(pc.next).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return `<p class="note slot-hint"><b>The band's next reading: ${at}${mins ? ` (in ${mins} min)` : " (now)"}.</b> It measures every ${pc.interval} minutes and fails if your arm moves, so sit still with it on around then. ${ctx.band?.connected ? "Pulse will fetch that reading and match it to your cuff." : "Connect the band so Pulse can fetch that reading and match it to your cuff."}</p>`;
+  return `<p class="note slot-hint"><b>The band's next reading: ${at}${mins ? ` (in ${mins} min)` : " (now)"}.</b> It measures on its own every ${pc.interval} minutes. ${ctx.band?.connected ? "Pulse will fetch that reading and match it to your cuff." : "Connect the band so Pulse can fetch that reading and match it to your cuff."}</p>`;
 }

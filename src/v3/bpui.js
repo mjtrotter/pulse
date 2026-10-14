@@ -1,12 +1,12 @@
 // Measure → Blood pressure. The band's own estimate, charted continuously and calibrated to your cuff readings, which
 // sit on the same chart as anchors (analytics/bpcal.js). Cuff readings alone set the home average, its category and
 // heart risk (the AHA advises against cuffless readings for diagnosis); the calibrated line shows what happens between.
-import { dip, series, Z80 } from "../analytics/bpcal.js?v=20261014192250";
-import { toMs } from "../core/time.js?v=20261014192250";
-import { bpCategory, bpSummary } from "./bp.js?v=20261014192250";
-import { bpDetail } from "./riskui.js?v=20261014192250";
-import { mean } from "./stats.js?v=20261014192250";
-import { ampm, css, D, DAYS, hr12, MON, poly, relMin, S, sc, scrubbable, sign, smoothRuns, st, uid } from "./kit.js?v=20261014192250";
+import { dip, series, Z80 } from "../analytics/bpcal.js?v=20261014195152";
+import { toMs } from "../core/time.js?v=20261014195152";
+import { bpCategory, bpSummary } from "./bp.js?v=20261014195152";
+import { bpDetail } from "./riskui.js?v=20261014195152";
+import { mean } from "./stats.js?v=20261014195152";
+import { ampm, css, D, DAYS, hr12, MON, poly, relMin, S, sc, scrubbable, sign, smoothRuns, st, uid } from "./kit.js?v=20261014195152";
 
 /** [days, label, bucket minutes] for each chart window. */
 const WINS = [["1", "24H", 30], ["7", "7D", 120], ["30", "30D", 360], ["90", "90D", 1440]];

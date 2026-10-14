@@ -14,7 +14,7 @@
 // moves the line part of the way, and the slope only leaves 1 once anchors cover a spread of band values. Accuracy is
 // measured the honest way: each reading is predicted only from cuff readings taken in earlier sittings.
 // Cuff readings stay the basis of every category, average and risk score; the calibrated line fills in between them.
-import { toMs } from "../core/time.js?v=20261014192250";
+import { toMs } from "../core/time.js?v=20261014195152";
 
 /** Most cuff readings a calibration uses (the nearest in time; for "now", the most recent). */
 export const MAX_ANCHORS = 30;

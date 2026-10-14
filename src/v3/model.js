@@ -1,19 +1,19 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20261014192250";
-import { dayOf, toMs } from "../core/time.js?v=20261014192250";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20261014192250";
-import { detectWorkouts } from "../analytics/workouts.js?v=20261014192250";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20261014192250";
-import { stepGoal } from "../analytics/scores.js?v=20261014192250";
-import { ASK_RATE, cleanOther, dateDraw, median, otherKey, triggers } from "./stats.js?v=20261014192250";
-import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20261014192250";
-import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20261014192250";
-import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20261014192250";
-import { bpBand } from "../analytics/bpcal.js?v=20261014192250";
-import { fit as ladderFit } from "../analytics/bpmodel.js?v=20261014192250";
-import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20261014192250";
+import * as db from "../core/db.js?v=20261014195152";
+import { dayOf, toMs } from "../core/time.js?v=20261014195152";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20261014195152";
+import { detectWorkouts } from "../analytics/workouts.js?v=20261014195152";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20261014195152";
+import { stepGoal } from "../analytics/scores.js?v=20261014195152";
+import { ASK_RATE, cleanOther, dateDraw, median, otherKey, triggers } from "./stats.js?v=20261014195152";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20261014195152";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20261014195152";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20261014195152";
+import { bpBand } from "../analytics/bpcal.js?v=20261014195152";
+import { fit as ladderFit } from "../analytics/bpmodel.js?v=20261014195152";
+import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20261014195152";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
