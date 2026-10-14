@@ -1,32 +1,32 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20261014181550";
-import * as db from "./core/db.js?v=20261014181550";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261014181550";
-import { stamp } from "./core/time.js?v=20261014181550";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261014181550";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261014181550";
-import { scoreDays } from "./analytics/scores.js?v=20261014181550";
-import { mergeLabPanel } from "./analytics/labs.js?v=20261014181550";
-import { apply, bandAt, calibrateAt } from "./analytics/bpcal.js?v=20261014181550";
-import { buildModel } from "./v3/model.js?v=20261014181550";
-import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261014181550";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261014181550";
-import { drill, M } from "./v3/drill.js?v=20261014181550";
-import { today } from "./v3/today.js?v=20261014181550";
-import { night } from "./v3/night.js?v=20261014181550";
-import { trends } from "./v3/trends.js?v=20261014181550";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261014181550";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20261014181550";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261014181550";
-import { advSheet } from "./v3/advanced.js?v=20261014181550";
-import { explainSheet } from "./v3/explain.js?v=20261014181550";
-import { cycleView } from "./v3/cycleui.js?v=20261014181550";
+import { Band } from "./core/ble.js?v=20261014192250";
+import * as db from "./core/db.js?v=20261014192250";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261014192250";
+import { stamp } from "./core/time.js?v=20261014192250";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261014192250";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261014192250";
+import { scoreDays } from "./analytics/scores.js?v=20261014192250";
+import { mergeLabPanel } from "./analytics/labs.js?v=20261014192250";
+import { apply, bandAt, calibrateAt } from "./analytics/bpcal.js?v=20261014192250";
+import { buildModel } from "./v3/model.js?v=20261014192250";
+import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261014192250";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261014192250";
+import { drill, M } from "./v3/drill.js?v=20261014192250";
+import { today } from "./v3/today.js?v=20261014192250";
+import { night } from "./v3/night.js?v=20261014192250";
+import { trends } from "./v3/trends.js?v=20261014192250";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261014192250";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20261014192250";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261014192250";
+import { advSheet } from "./v3/advanced.js?v=20261014192250";
+import { explainSheet } from "./v3/explain.js?v=20261014192250";
+import { cycleView } from "./v3/cycleui.js?v=20261014192250";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
 const PREVIEW = location.pathname.includes("/next/");
-const DB = DEMO ? "jcv8-demo4" : PREVIEW ? "jcv8-next" : db.DB_NAME;
+const DB = DEMO ? "jcv8-demo6" : PREVIEW ? "jcv8-next" : db.DB_NAME;
 const TABS = { today: "Live", night: "Sleep", trends: "Trends", measure: "Measure", profile: "Profile" };
 const $ = (s, r = document) => r.querySelector(s);
 
@@ -103,12 +103,12 @@ async function reconnectQuietly() {
   } finally { reconnecting = false; }
 }
 
-async function sync() {
+async function sync({ light = false } = {}) {
   if (!ctx.band?.connected || ctx.busy || st.recRun) return;
   ctx.busy = true;
   try {
     const expectMac = ctx.picked ? null : await db.getSetting(ctx.store, "band_mac");
-    const res = await syncBand(ctx.band, ctx.store, { onStep: (t) => ctx.setStatus("syncing", t), log: ctx.log, expectMac });
+    const res = await syncBand(ctx.band, ctx.store, { onStep: (t) => ctx.setStatus("syncing", t), log: ctx.log, expectMac, ...(light ? { kinds: ["hrv"] } : {}) });
     ctx.mac = res.mac; ctx.info = res.info; ctx.picked = false;
     if (res.info?.mac) await db.setSetting(ctx.store, "band_mac", res.info.mac);
     ctx.setStatus("syncing", "Analysing…");
@@ -124,10 +124,32 @@ async function sync() {
   } finally {
     ctx.busy = false;
     invalidate();
-    if (!modal) await render(false);
+    if (!modal) await render(false); else await prepare();
+    confirmAnchor();
+    scheduleBpRefresh();
   }
 }
 function disconnect() { ctx.band?.disconnect(); }
+
+// The band takes a BP/HRV reading on a fixed grid (every 10 minutes on Pulse's schedule). While Pulse is open and
+// connected, fetch each one shortly after it's taken, so the band's blood pressure stays current.
+let bpTimer = null;
+function scheduleBpRefresh() {
+  clearTimeout(bpTimer); bpTimer = null;
+  if (DEMO || !ctx.band?.connected || document.visibilityState !== "visible") return;
+  const next = D.advData?.bp?.pace?.next ?? Date.now() + 10 * 60e3, wait = Math.min(15 * 60e3, Math.max(30e3, next + 75e3 - Date.now()));
+  bpTimer = setTimeout(async () => { bpTimer = null; if (ctx.band?.connected && !ctx.busy && !st.recRun && document.visibilityState === "visible") await sync({ light: true }); else scheduleBpRefresh(); }, wait);
+}
+/** After a cuff reading is logged, say which band reading it was matched with once the band's next one arrives. */
+function confirmAnchor() {
+  const t = ctx.pendingCuff; if (!t) return;
+  const a = D.advData?.bp?.A?.find((z) => z.t === t);
+  if (!a || Date.now() - a.ms > 100 * 60e3) { ctx.pendingCuff = null; return; }
+  if (!a.band || a.band.after == null) return; // still waiting for a band reading after the cuff
+  ctx.pendingCuff = null;
+  const R = D.advData.bp, c = apply(calibrateAt(R.A, a.ms), a.band), r0 = Math.round;
+  toast(`Anchored. At ${t.slice(11, 16)} the band read about ${r0(a.band.sys)}/${r0(a.band.dia)}; corrected, ${r0(c.sys)}/${r0(c.dia)}; your cuff ${r0(a.sys)}/${r0(a.dia)}.`, 7000);
+}
 function paintStatus() {
   const busy = ctx.conn === "connecting" || ctx.conn === "syncing";
   for (const el of document.querySelectorAll("[data-syncchip]")) {
@@ -156,7 +178,7 @@ async function prepare() {
   D.i = st.tab === "night" && st.sel != null && m.hist[st.sel] ? st.sel : st.tab === "night" ? defNight : m.L;
   D.H = m.hist.slice(0, D.i + 1); D.last = m.hist[D.i];
   D.nt = D.last?.hasNight ? await m.night(D.i) : null;
-  D.syncText = syncText();
+  D.syncText = syncText(); D.connected = !!ctx.band?.connected;
   if (st.tab === "profile") { D.counts = await db.counts(ctx.store); D.schedule = await db.getSetting(ctx.store, "schedule"); }
 }
 
@@ -354,7 +376,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261014181550");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261014192250");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -488,13 +510,14 @@ document.addEventListener("submit", async (e) => {
     await db.put(ctx.store, "bp", { t, sys: s, dia: d, pulse: Number.isFinite(p) ? p : null, arm: null, note: "" });
     closeSheet();
     // Tell the person what the band said around the same time, and what the calibration (from earlier anchors) predicted.
-    const R = D.advData?.bp, b = R?.B?.length ? bandAt(R.B, Date.now()) : null, c = b && R.cal.n ? apply(calibrateAt(R.A, Date.now(), { before: true }), b) : null;
+    const R = D.advData?.bp, b = R?.B?.length ? bandAt(R.B, Date.now()) : null, c = b && R.cal.n ? apply(calibrateAt(R.A, Date.now()), b) : null;
     const r0 = Math.round, sg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(r0(v))}`;
-    const anchorMsg = b ? `The band read ${r0(b.sys)}/${r0(b.dia)} around then${c ? `; calibrated, ${r0(c.sys)}/${r0(c.dia)} (off by ${sg(c.sys - s)}/${sg(c.dia - d)})` : ""}. This reading now anchors it.`
-      : `It anchors the band once the band's reading from this half hour arrives${ctx.band?.connected ? "; syncing now" : " at the next sync"}.`;
+    const nx = R?.pace?.next, nxt = nx ? new Date(nx).toTimeString().slice(0, 5) : null;
+    const anchorMsg = `${b ? `The band's latest reading puts it near ${r0(b.sys)}/${r0(b.dia)}${c ? ` (corrected ${r0(c.sys)}/${r0(c.dia)}, off by ${sg(c.sys - s)}/${sg(c.dia - d)})` : ""}. ` : ""}${ctx.band?.connected ? `Pulse will fetch the band's ${nxt ? `${nxt} ` : "next "}reading and match it to this one.` : "Connect the band so Pulse can match this to the band's reading from the same moment."}`;
     toast(s > 180 || d > 120 ? "Saved. That's very high: rest 5 minutes and measure again; with chest pain, shortness of breath or weakness, call 911." : `Saved. ${anchorMsg}`, s > 180 || d > 120 ? 8000 : 6000);
     invalidate(); await stay();
-    if (!b && ctx.band?.connected) sync();
+    ctx.pendingCuff = t;
+    if (ctx.band?.connected) sync({ light: true });
     return;
   }
   if (kind === "profile" || kind === "obprofile") {
@@ -628,7 +651,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20261014181550");
+    const { seedDemo } = await import("./demo.js?v=20261014192250");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },
@@ -650,7 +673,7 @@ async function main() {
   prune().catch((e) => ctx.log(`Prune: ${e.message}`, true));
   if (ctx.profile.onboarded) connect({ auto: true }).catch(() => {});
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
+    if (document.visibilityState !== "visible") { clearTimeout(bpTimer); bpTimer = null; return; }
     checkForUpdate();
     if (ctx.band?.connected && !ctx.busy) sync();
     else { reconnectQuietly().then((ok) => { if (!ok && !modal) { invalidate(); stay(); } }); }

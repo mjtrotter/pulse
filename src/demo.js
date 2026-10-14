@@ -1,9 +1,9 @@
 // 30 days of synthetic data for ?demo (separate database). Deterministic, and shaped like a real
 // 58-year-old wearer: a regular-ish sleeper with one late night, a mild illness 10-12 days ago,
 // evening walks and two strength sessions a week.
-import * as db from "./core/db.js?v=20261014181550";
-import { ecgSummary, ECG_FS } from "./analytics/ecg.js?v=20261014181550";
-import { stamp } from "./core/time.js?v=20261014181550";
+import * as db from "./core/db.js?v=20261014192250";
+import { ecgSummary, ECG_FS } from "./analytics/ecg.js?v=20261014192250";
+import { stamp } from "./core/time.js?v=20261014192250";
 
 const BAND = "DEMO";
 
@@ -16,6 +16,7 @@ export async function seedDemo(store) {
   const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const D = 30;
   const hr = [], sleep = [], spo2 = [], temp = [], hrv = [], activity = [], daily = [], ppi = [];
+  let lastBp = [110, 70]; // the band repeats its last good BP on a failed attempt
 
   for (let k = D; k >= 0; k--) {
     // Night ending on day `k` days ago.
@@ -98,8 +99,10 @@ export async function seedDemo(store) {
       // ~70% of the real swing (morning surge, the evening walk), so the cuff readings have something to anchor.
       if (m % 10 === 0) {
         const walking = walks && hh >= walkAt && hh < walkAt + 0.8, sys = 125 + 4 * Math.cos(((hh - 8) / 24) * 2 * Math.PI) + (walking ? 12 : 0) + (ill ? 3 : 0), dia = 81 + 2 * Math.cos(((hh - 8) / 24) * 2 * Math.PI) + (walking ? 4 : 0);
-        hrv.push({ band: BAND, t: stamp(new Date(day.getTime() + m * 60e3)), hrv_ms: Math.max(10, Math.round(30 + gauss() * 6)), vascular_aging: 0, hr: Math.round(bpm), stress: 45,
-          bp_sys: Math.round(113 + 0.7 * (sys - 120) + gauss() * 4), bp_dia: Math.round(73 + 0.7 * (dia - 78) + gauss() * 3) });
+        // Like the real band, many daytime attempts fail (hr 0) and repeat the last good BP.
+        const fails = rnd() < (walking ? 0.9 : 0.4);
+        if (!fails) lastBp = [Math.round(113 + 0.7 * (sys - 120) + gauss() * 4), Math.round(73 + 0.7 * (dia - 78) + gauss() * 3)];
+        hrv.push({ band: BAND, t: stamp(new Date(day.getTime() + m * 60e3)), hrv_ms: Math.max(10, Math.round(30 + gauss() * 6)), vascular_aging: 0, hr: fails ? 0 : Math.round(bpm), stress: 45, bp_sys: lastBp[0], bp_dia: lastBp[1] });
       }
     }
   }
@@ -110,8 +113,9 @@ export async function seedDemo(store) {
     const hh = new Date(t).getHours() + new Date(t).getMinutes() / 60;
     hr.push({ band: BAND, t: stamp(new Date(t)), bpm: Math.round(68 + 5 * Math.sin(((hh - 9) / 24) * 2 * Math.PI) + gauss() * 2.5), source: "auto" });
     if ((t - w0.getTime()) % 600e3 === 0 && t > w0.getTime()) {
-      const sys = 125 + 4 * Math.cos(((hh - 8) / 24) * 2 * Math.PI), dia = 81 + 2 * Math.cos(((hh - 8) / 24) * 2 * Math.PI);
-      hrv.push({ band: BAND, t: stamp(new Date(t)), hrv_ms: Math.max(10, Math.round(30 + gauss() * 6)), vascular_aging: 0, hr: 70, stress: 45, bp_sys: Math.round(113 + 0.7 * (sys - 120) + gauss() * 4), bp_dia: Math.round(73 + 0.7 * (dia - 78) + gauss() * 3) });
+      const sys = 125 + 4 * Math.cos(((hh - 8) / 24) * 2 * Math.PI), dia = 81 + 2 * Math.cos(((hh - 8) / 24) * 2 * Math.PI), fails = rnd() < 0.4;
+      if (!fails) lastBp = [Math.round(113 + 0.7 * (sys - 120) + gauss() * 4), Math.round(73 + 0.7 * (dia - 78) + gauss() * 3)];
+      hrv.push({ band: BAND, t: stamp(new Date(t)), hrv_ms: Math.max(10, Math.round(30 + gauss() * 6)), vascular_aging: 0, hr: fails ? 0 : 70, stress: 45, bp_sys: lastBp[0], bp_dia: lastBp[1] });
     }
   }
   let todaySteps = 0;
@@ -130,6 +134,8 @@ export async function seedDemo(store) {
   const bp = [];
   for (const [k, hrs, s, d, p] of [[13, 7.5, 128, 82, 64], [13, 20, 124, 80, 66], [9, 7.4, 131, 84, 62], [9, 20.5, 126, 81, 67], [5, 7.6, 127, 83, 61], [5, 21, 123, 79, 65], [1, 7.3, 129, 82, 60], [1, 20.2, 125, 80, 66]]) {
     bp.push({ t: stamp(new Date(today0.getTime() - k * 864e5 + hrs * 3600e3)), sys: s, dia: d, pulse: p, arm: "left", note: "" });
+    // The home protocol's second reading a minute later, usually a little lower.
+    if (k % 2) bp.push({ t: stamp(new Date(today0.getTime() - k * 864e5 + hrs * 3600e3 + 60e3)), sys: s - 3, dia: d - 1, pulse: p - 1, arm: "left", note: "" });
   }
   await db.insert(store, "bp", bp);
   // Two rhythm checks (synthetic finger ECG).

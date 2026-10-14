@@ -1,12 +1,12 @@
 // Advanced groups on the Trends tab: illness & apnea watch, body clock, heart fitness, energy, the
 // experimental cuff-calibrated BP estimate, and metabolic context from labs. Every row states how solid it
 // is; experimental ones carry a badge. Rows open a drill-down (daily series) or an explanation sheet.
-import { derived } from "../analytics/labs.js?v=20261014181550";
-import { mean, ols } from "./stats.js?v=20261014181550";
-import { ampm, clock, D, esc, sign } from "./kit.js?v=20261014181550";
-import { bmiOf, latestLabs } from "./labsui.js?v=20261014181550";
-import { cycleRow } from "./cycleui.js?v=20261014181550";
-import { bandDip } from "./bpui.js?v=20261014181550";
+import { derived } from "../analytics/labs.js?v=20261014192250";
+import { mean, ols } from "./stats.js?v=20261014192250";
+import { ampm, clock, D, esc, sign } from "./kit.js?v=20261014192250";
+import { bmiOf, latestLabs } from "./labsui.js?v=20261014192250";
+import { cycleRow } from "./cycleui.js?v=20261014192250";
+import { bandDip } from "./bpui.js?v=20261014192250";
 
 const XP = `<span class="xp">experimental</span>`;
 const INFO = (k) => `<button class="xi" data-explain="${k}" aria-label="How to read this">i</button>`;

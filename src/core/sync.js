@@ -1,9 +1,9 @@
 // Sync engine: pull new history from the band, store it, and report which days changed.
 // History arrives newest first in 500-record pages, and the band ignores resume dates, so we stop
 // paging once a page reaches data we already have (see Band.history).
-import * as db from "./db.js?v=20261014181550";
-import { AUTO, autoMeasurePacket, Cmd, decodeAutoMeasure, decodeHistory, decodeOsa, decodeRealtime, hex, osaPacket, packet, profilePacket, SYNCED } from "./protocol.js?v=20261014181550";
-import { stamp } from "./time.js?v=20261014181550";
+import * as db from "./db.js?v=20261014192250";
+import { AUTO, autoMeasurePacket, Cmd, decodeAutoMeasure, decodeHistory, decodeOsa, decodeRealtime, hex, osaPacket, packet, profilePacket, SYNCED } from "./protocol.js?v=20261014192250";
+import { stamp } from "./time.js?v=20261014192250";
 
 const TABLE = { hr: "hr", hrv: "hrv_vendor", spo2: "spo2", temp: "temp", sleep: "sleep", daily: "daily", activity: "activity", ppi: "ppi" };
 const LABEL = { hr: "heart rate", hrv: "HRV estimates", spo2: "blood oxygen", temp: "temperature", sleep: "sleep", daily: "daily totals",
@@ -44,7 +44,10 @@ export const DEFAULT_SCHEDULE = { spo2: 10, hrv: 10, osa: true };
  * Full sync. `onStep(text)` reports progress. Returns {mac, info, added: {kind: n}, dates: Set}.
  * `dates` holds every calendar date that got new rows, for the summary engine.
  */
-export async function syncBand(band, store, { onStep = () => {}, log = () => {}, expectMac = null } = {}) {
+export async function syncBand(band, store, { onStep = () => {}, log = () => {}, expectMac = null, kinds = SYNCED } = {}) {
+  // A light sync (a subset of kinds, e.g. just the BP/HRV history between full syncs) skips the profile, schedule and
+  // live snapshot, and only refreshes the band's last-sync time.
+  const light = kinds !== SYNCED;
   onStep("Reading band…");
   let info = await band.info();
   const mac = info.mac ?? band.name;
@@ -62,11 +65,13 @@ export async function syncBand(band, store, { onStep = () => {}, log = () => {},
     await band.syncClock();
     info = { ...info, ...(await band.info()) };
   }
-  await writeProfileIfChanged(band, store, mac, log);
-  await applySchedule(band, store, log);
+  if (!light) {
+    await writeProfileIfChanged(band, store, mac, log);
+    await applySchedule(band, store, log);
+  }
 
   const added = {}, dates = new Set();
-  for (const kind of SYNCED) {
+  for (const kind of kinds) {
     onStep(`Syncing ${LABEL[kind]}…`);
     const newest = kind === "daily" ? null : await db.latest(store, TABLE[kind], mac);
     const cut = claim.from > EARLIEST;
@@ -90,10 +95,15 @@ export async function syncBand(band, store, { onStep = () => {}, log = () => {},
     }
   }
   onStep("Finishing…");
-  let snapshot = null;
-  try { snapshot = await band.snapshot(decodeRealtime); } catch { /* optional */ }
-  await db.put(store, "band", { mac, name: band.name, firmware: info.firmware, battery: info.battery,
-    last_sync: stamp(), snapshot, snapshot_at: stamp() });
+  if (light) {
+    const prev = (await db.all(store, "band")).find((b) => b.mac === mac) ?? { mac, name: band.name };
+    await db.put(store, "band", { ...prev, firmware: info.firmware, battery: info.battery, last_sync: stamp() });
+  } else {
+    let snapshot = null;
+    try { snapshot = await band.snapshot(decodeRealtime); } catch { /* optional */ }
+    await db.put(store, "band", { mac, name: band.name, firmware: info.firmware, battery: info.battery,
+      last_sync: stamp(), snapshot, snapshot_at: stamp() });
+  }
   log(`Synced: ${Object.entries(added).map(([k, v]) => `${k} +${v}`).join(", ")}`);
   return { mac, info, added, dates };
 }

@@ -3,25 +3,25 @@
 // act. Zones come only from published cut-offs; where none exist (most HRV and wearable-derived measures) the
 // guide says so and judges the number against YOUR OWN usual instead. Rows and tiles open a guide with
 // data-explain="<key>"; the guide reads the current value itself, so callers pass nothing else.
-import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261014181550";
-import { advBody } from "./advanced.js?v=20261014181550";
-import { analyze, analyzed, current } from "./measure.js?v=20261014181550";
-import { bpCategory, bpSummary } from "./bp.js?v=20261014181550";
-import { bandDip } from "./bpui.js?v=20261014181550";
-import { ANALYTES, bmiOf, labLabel, latestLabs, preventResult } from "./labsui.js?v=20261014181550";
-import { LABGUIDE } from "./labguide.js?v=20261014181550";
-import { tierChip, whatMoved } from "./riskui.js?v=20261014181550";
-import { calibrateAt, Z80 } from "../analytics/bpcal.js?v=20261014181550";
-import { bodyIndices } from "../analytics/body.js?v=20261014181550";
-import { metabolicSyndrome } from "../analytics/riskctx.js?v=20261014181550";
-import { sleepNeed } from "../analytics/sleep.js?v=20261014181550";
-import { homeBP, sessions } from "../analytics/homebp.js?v=20261014181550";
-import { toMs } from "../core/time.js?v=20261014181550";
-import { derived } from "../analytics/labs.js?v=20261014181550";
-import { PHENO_AGE_YEARS, PHENO_REF, phenoChange, phenoParts, preventGroups, workings, zonesFor } from "../analytics/labcalc.js?v=20261014181550";
-import { preventBreakdown } from "../analytics/prevent.js?v=20261014181550";
-import { isUS } from "../core/units.js?v=20261014181550";
-import { ampm, clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261014181550";
+import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261014192250";
+import { advBody } from "./advanced.js?v=20261014192250";
+import { analyze, analyzed, current } from "./measure.js?v=20261014192250";
+import { bpCategory, bpSummary } from "./bp.js?v=20261014192250";
+import { bandDip } from "./bpui.js?v=20261014192250";
+import { ANALYTES, bmiOf, labLabel, latestLabs, preventResult } from "./labsui.js?v=20261014192250";
+import { LABGUIDE } from "./labguide.js?v=20261014192250";
+import { tierChip, whatMoved } from "./riskui.js?v=20261014192250";
+import { calibrateAt, Z80 } from "../analytics/bpcal.js?v=20261014192250";
+import { bodyIndices } from "../analytics/body.js?v=20261014192250";
+import { metabolicSyndrome } from "../analytics/riskctx.js?v=20261014192250";
+import { sleepNeed } from "../analytics/sleep.js?v=20261014192250";
+import { homeBP, sessions } from "../analytics/homebp.js?v=20261014192250";
+import { toMs } from "../core/time.js?v=20261014192250";
+import { derived } from "../analytics/labs.js?v=20261014192250";
+import { PHENO_AGE_YEARS, PHENO_REF, phenoChange, phenoParts, preventGroups, workings, zonesFor } from "../analytics/labcalc.js?v=20261014192250";
+import { preventBreakdown } from "../analytics/prevent.js?v=20261014192250";
+import { isUS } from "../core/units.js?v=20261014192250";
+import { ampm, clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261014192250";
 
 const TIER = { good: "Optimal", watch: "Borderline", bad: "Risk" };
 const num = (v) => v != null && Number.isFinite(v);
@@ -569,15 +569,15 @@ export const GUIDE = {
     cite: "Whelton, Hypertension 2018 (ACC/AHA 2017 guideline, home thresholds); Lewington, Lancet 2002.",
   },
   bpest: {
-    title: "Band blood pressure, calibrated", unit: "mmHg", xp: true, fmt: (v) => v.toFixed(0),
+    title: "Band blood pressure, corrected", unit: "mmHg", xp: true, fmt: (v) => v.toFixed(0),
     live() {
       const R = D.advData?.bp, L = R?.latest;
       return { v: null, shown: L ? `${Math.round(L.sys)}/${Math.round(L.dia)}<small>mmHg</small>` : undefined, text: L ? `80% range ${Math.round(L.sys - Z80 * L.sysSd)}–${Math.round(L.sys + Z80 * L.sysSd)} systolic. The band itself read ${Math.round(L.raw.sys)}/${Math.round(L.raw.dia)} at ${ampm(new Date(L.ms).getHours() * 60 + new Date(L.ms).getMinutes())}${R.cal.n ? `; calibrated to ${R.cal.n} cuff reading${R.cal.n > 1 ? "s" : ""}` : "; no cuff readings to calibrate it yet"}.` : "" };
     },
     keyNote: "<b>Judge blood pressure by your cuff.</b> The cuff's 7-day average sets your category (Measure → Blood pressure); this line is the trend between cuff readings.",
-    what: "The band records its own blood-pressure estimate with every HRV measurement (every 10 minutes on Pulse's schedule). How it computes that is the maker's secret, and like every cuffless estimate it is off by a different amount for each person. Your home cuff readings are the anchors: each one is paired with the band's readings from the same half hour, and Pulse learns how far off the band runs for you (the <b>offset</b>) and how much of its rise and fall shows up on your cuff (the <b>slope</b>).",
-    read: "Read the line as a trend between cuff readings: if it climbs and stays up, check with your cuff. The shaded range is where 80% of cuff readings would be expected to land given what Pulse knows; it narrows as you add anchors. Accuracy is measured honestly: each cuff reading is predicted only from the readings before it, and compared with the band as measured and with simply reusing your previous cuff reading. Your home cuff average, not this line, sets your blood-pressure category and feeds your heart-risk estimate.",
-    moves: "Real changes (activity, stress, salt, alcohol, sleep, medicines) and things that fool the sensor: a loose band, cold hands, arm position and movement. A new band or a firmware update can shift the offset, so log a few cuff readings after either.",
+    what: "The band records its own blood-pressure estimate with every HRV measurement (every 10 minutes on Pulse's schedule). How it computes that is the maker's secret, and like every cuffless estimate it is off by a different amount for each person. Your home cuff readings are the anchors: for each one Pulse works out what the band read at that exact moment (a straight line between its good readings either side), then learns how far off the band runs for you (the <b>offset</b>) and how much of its rise and fall shows up on your cuff (the <b>slope</b>).",
+    read: "Read the line as a trend between cuff readings: if it climbs and stays up, check with your cuff. The ± is the range 80% of cuff readings would be expected to fall in given what Pulse knows; it narrows as you add cuff readings. Accuracy is measured honestly: each cuff reading is predicted only from the readings before it, and compared with the band as measured and with simply reusing your previous cuff reading. Your home cuff average, not this line, sets your blood-pressure category and feeds your heart-risk estimate.",
+    moves: "Real changes (activity, stress, salt, alcohol, sleep, medicines) and things that fool the sensor: a loose band, cold hands, arm position and movement. A new band or a firmware update can shift the offset, so log a few cuff readings after either. The band's own reading fails when the arm is moving, so on active days there can be an hour or two between good readings.",
     act: "Use your cuff for decisions. If the band's line runs high for several days, take a week of morning and evening cuff readings and look at that average.",
     caveat: "Cuffless blood pressure is not validated for diagnosis, and this band exposes no raw pulse waveform, so the estimate is only as good as the band's own signal plus your anchors. The European Society of Hypertension and the AHA advise against using cuffless readings to diagnose or treat high blood pressure.",
     cite: "Mukkamala, IEEE Trans Biomed Eng 2015 (cuffless BP needs per-person calibration); Stergiou, J Hypertens 2023 (ESH recommendations for validating cuffless devices); Muntner, Hypertension 2019 (AHA statement on BP measurement).",
@@ -592,7 +592,7 @@ export const GUIDE = {
       return `<p>The latest band reading (${new Date(L.ms).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${ampm(new Date(L.ms).getHours() * 60 + new Date(L.ms).getMinutes())}), worked through with your calibration:</p>`
         + formula("cuff ≈ band + offset + (slope − 1) × (band − band's usual)")
         + worked(chan("Systolic", L.raw.sys, c.sys)) + worked(chan("Diastolic", L.raw.dia, c.dia))
-        + (c.n ? kvRows([["Anchors", `${c.n}`, "cuff sittings with a band reading within 30 min; each one's weight halves every 60 days"], ["Offset, systolic", `${sg(c.sys.offset)} ± ${Math.sqrt(c.sys.cov[0][0]).toFixed(1)}`, "positive means the band reads low for you"], ["Slope, systolic", `${c.sys.slope.toFixed(2)} ± ${Math.sqrt(c.sys.cov[1][1]).toFixed(2)}`, "starts at 1 (trust the band's swings) and moves only once anchors cover a spread"], ["Scatter of one reading", `±${c.sys.sigma.toFixed(1)} / ±${c.dia.sigma.toFixed(1)}`, "how far a single cuff sitting lands from the line, systolic / diastolic"]]) : "")
+        + (c.n ? kvRows([["Cuff readings used", `${c.n}`, "the newest 30 matched to the band; each counts by how close the band's nearest good reading was (fully within a few minutes, half at 30 minutes)"], ["Offset, systolic", `${sg(c.sys.offset)} ± ${Math.sqrt(c.sys.cov[0][0]).toFixed(1)}`, "positive means the band reads low for you"], ["Slope, systolic", `${c.sys.slope.toFixed(2)} ± ${Math.sqrt(c.sys.cov[1][1]).toFixed(2)}`, "starts at 1 (trust the band's swings) and moves only once anchors cover a spread"], ["Scatter of one reading", `±${c.sys.sigma.toFixed(1)} / ±${c.dia.sigma.toFixed(1)}`, "how far a single cuff sitting lands from the line, systolic / diastolic"]]) : "")
         + (v.n ? `<p class="calc-n">On ${v.n} reading${v.n > 1 ? "s" : ""} it hadn't seen, the calibrated band missed your cuff by <b>${v.sys.cal.toFixed(1)}</b> mmHg systolic on average, vs ${v.sys.raw.toFixed(1)} for the band as measured and ${v.sys.last.toFixed(1)} for your previous cuff reading.</p>` : "")
         + `<p class="calc-n">Before any anchor, Pulse assumes the band could be off by about ±15 mmHg systolic (±10 diastolic) and that its swings are right (slope 1 ± 0.3). Each anchor updates both in proportion to how much it tells; the scatter is learned from your own anchors.</p>`;
     },

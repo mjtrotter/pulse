@@ -1,23 +1,31 @@
 // The band's own blood-pressure estimate, anchored to your cuff.
 //
 // The band stores a systolic/diastolic estimate with every HRV measurement (opcode 56; every 10 minutes on the dense
-// schedule). The vendor's method is unknown and the band exposes no raw pulse waveform, so, like every cuffless
-// estimate, it has to be calibrated per person (Mukkamala, IEEE TBME 2015; ESH cuffless statement, J Hypertens 2023).
-// Each home cuff sitting is an anchor: Pulse pairs it with the band's readings from the same half hour and learns how
-// far off the band runs for you (offset) and how much of its swing is real (slope).
+// schedule, on a fixed grid such as :03, :13, :23 past the hour). Many daytime attempts fail (movement): those records
+// carry hr = 0 and simply repeat the last good BP, so only good readings are used and the failed slots are kept for
+// pacing. The vendor's method is unknown and the band exposes no raw pulse waveform, so, like every cuffless estimate,
+// it has to be calibrated per person (Mukkamala, IEEE TBME 2015; ESH cuffless statement, J Hypertens 2023).
 //
-// The fit is Bayesian. Before any anchor the band is taken as-is with a wide range. One reading moves the line part of
-// the way, a handful pin the offset down, and the slope only leaves 1 once anchors cover a spread of band values.
-// Anchors far in time from the moment being estimated count for less (half-life 60 days), because the band-to-cuff
-// relationship drifts. Accuracy is measured the honest way: each anchor is predicted only from the anchors before it.
+// Every cuff reading is an anchor. Pulse works out what the band would have read at that exact moment (interpolating
+// between its good readings either side, up to 90 minutes away) and learns how far off the band runs for you (offset)
+// and how much of its swing is real (slope). The fit uses the 30 cuff readings nearest in time (for "now", the 30 most
+// recent); an anchor whose nearest band reading is far away counts for less, because the band value it is compared
+// with is less certain. The fit is Bayesian: before any anchor the band is taken as-is with a wide range, one reading
+// moves the line part of the way, and the slope only leaves 1 once anchors cover a spread of band values. Accuracy is
+// measured the honest way: each reading is predicted only from cuff readings taken in earlier sittings.
 // Cuff readings stay the basis of every category, average and risk score; the calibrated line fills in between them.
-import { toMs } from "../core/time.js?v=20261014181550";
-import { sessions } from "./homebp.js?v=20261014181550";
+import { toMs } from "../core/time.js?v=20261014192250";
 
-/** Minutes either side of a cuff sitting that the band's readings are taken from. */
-export const WIN = 30;
-/** Days for an anchor's weight to halve with distance in time. */
-export const HALF_LIFE = 60;
+/** Most cuff readings a calibration uses (the nearest in time; for "now", the most recent). */
+export const MAX_ANCHORS = 30;
+/** Minutes: interpolate between good band readings up to this far either side of a cuff reading … */
+export const PAIR_MAX = 90;
+/** … or use a single good reading on one side up to this far away. */
+export const ONE_SIDE = 45;
+/** Weight of an anchor whose nearest good band reading is `gap` minutes away (1 at 0, ½ at 30, 0.2 at 60). */
+export const pairWeight = (gap) => 1 / (1 + (gap / 30) ** 2);
+/** Readings this close together (minutes) are one sitting. */
+const SITTING = 10;
 /** Prior per channel (mmHg): offset spread across people, slope spread around 1, and one anchor's scatter. The noise
  *  prior is worth NU0 anchors; the person's own scatter replaces it as anchors accumulate. */
 export const PRIOR = { sys: { offsetSd: 15, slopeSd: 0.3, noise: 7 }, dia: { offsetSd: 10, slopeSd: 0.3, noise: 5 } };
@@ -27,32 +35,39 @@ export const Z80 = 1.2816;
 
 const ok = (r) => r && r.sys > 0 && r.dia > 0 && r.sys > r.dia;
 
-/** Band rows [{t, sys, dia}] → sorted [{t, ms, sys, dia}] (the band's failed measurements are dropped upstream). */
+/** Good band readings [{t, sys, dia}] → sorted [{t, ms, sys, dia}] (failed attempts are dropped upstream). */
 export function prepBand(rows) {
   return (rows ?? []).filter(ok).map((r) => ({ t: r.t, ms: r.ms ?? toMs(r.t), sys: r.sys, dia: r.dia })).sort((a, b) => a.ms - b.ms);
 }
 function lowerBound(B, ms) { let lo = 0, hi = B.length; while (lo < hi) { const m = (lo + hi) >> 1; if (B[m].ms < ms) lo = m + 1; else hi = m; } return lo; }
 
-/** The band's estimate around `ms`: its readings within ±`win` minutes, nearer ones counting more (triangular
- *  weights). {sys, dia, n, dtMin} or null when the band has nothing that close. */
-export function bandAt(B, ms, win = WIN) {
-  const W = win * 60e3;
-  let sw = 0, ss = 0, sd = 0, n = 0, near = Infinity;
-  for (let i = lowerBound(B, ms - W); i < B.length && B[i].ms <= ms + W; i++) {
-    const d = Math.abs(B[i].ms - ms), w = 1 - d / W;
-    if (w <= 0) continue;
-    sw += w; ss += w * B[i].sys; sd += w * B[i].dia; n++; near = Math.min(near, d);
+/** What the band would have read at `ms`: a straight line between its good readings just before and after (each
+ *  within PAIR_MAX minutes), else the nearest good reading on one side within ONE_SIDE minutes, else null.
+ *  {sys, dia, gap (minutes to the nearest reading), before, after (minutes, or null), how} */
+export function bandAt(B, ms) {
+  const i = lowerBound(B, ms), aft = B[i] ?? null, bef = i > 0 ? B[i - 1] : null;
+  const gb = bef ? (ms - bef.ms) / 60e3 : Infinity, ga = aft ? (aft.ms - ms) / 60e3 : Infinity;
+  if (bef && aft && gb <= PAIR_MAX && ga <= PAIR_MAX) {
+    const f = gb / (gb + ga);
+    return { sys: bef.sys + f * (aft.sys - bef.sys), dia: bef.dia + f * (aft.dia - bef.dia), gap: Math.min(gb, ga), before: gb, after: ga, how: ga === 0 ? "at" : "between" };
   }
-  return n ? { sys: ss / sw, dia: sd / sw, n, dtMin: near / 60e3 } : null;
+  if (gb <= ONE_SIDE) return { sys: bef.sys, dia: bef.dia, gap: gb, before: gb, after: null, how: "before" };
+  if (ga <= ONE_SIDE) return { sys: aft.sys, dia: aft.dia, gap: ga, before: null, after: ga, how: ga === 0 ? "at" : "after" };
+  return null;
 }
 
-/** Cuff sittings (readings within 10 minutes averaged, as the home protocol does), each with the band's estimate
- *  from the same half hour, oldest first. `band` is null for a sitting the band can't anchor. */
+/** Every cuff reading, oldest first, with its sitting number, the band's value at that moment (or null) and its
+ *  weight. [{t, ms, sys, dia, pulse, sit, band, w}] */
 export function anchors(cuff, B) {
-  return sessions(cuff).map((s) => { const ms = toMs(s.t); return { t: s.t, ms, sys: s.sys, dia: s.dia, pulse: s.pulse, n: s.n, band: bandAt(B, ms) }; });
+  const rs = (cuff ?? []).filter(ok).map((r) => ({ ...r, ms: toMs(r.t) })).sort((a, b) => a.ms - b.ms);
+  let sit = -1, prev = -Infinity;
+  return rs.map((r) => {
+    if (r.ms - prev > SITTING * 60e3) sit++;
+    prev = r.ms;
+    const band = bandAt(B, r.ms);
+    return { t: r.t, ms: r.ms, sys: r.sys, dia: r.dia, pulse: r.pulse ?? null, sit, band, w: band ? pairWeight(band.gap) : 0 };
+  });
 }
-
-const weightAt = (aMs, ms, halfLife) => 0.5 ** (Math.abs(ms - aMs) / (halfLife * 864e5));
 
 /**
  * One channel: cuff − band = offset + (slope − 1)·(band − center) + noise, with a normal prior on offset (0) and
@@ -87,12 +102,14 @@ export function predict(fit, x) {
 }
 
 /**
- * Calibration as of `ms`: every anchor with a band pair, weighted by its distance in time from `ms`. With
- * `before: true` only anchors strictly earlier count (used to score predictions honestly).
+ * Calibration as of `ms` from the MAX_ANCHORS paired cuff readings nearest in time, each weighted by how close its
+ * band value was. With `beforeSit`, only readings from earlier sittings count (used to score predictions honestly).
+ * {n (anchors used), sys, dia}
  */
-export function calibrateAt(A, ms, { before = false, halfLife = HALF_LIFE, prior = PRIOR } = {}) {
-  const use = A.filter((a) => a.band && (!before || a.ms < ms));
-  const pts = (k) => use.map((a) => ({ x: a.band[k], y: a[k], w: weightAt(a.ms, ms, halfLife) }));
+export function calibrateAt(A, ms, { beforeSit = null, prior = PRIOR } = {}) {
+  let use = A.filter((a) => a.band && (beforeSit == null || a.sit < beforeSit));
+  if (use.length > MAX_ANCHORS) use = [...use].sort((x, y) => Math.abs(x.ms - ms) - Math.abs(y.ms - ms)).slice(0, MAX_ANCHORS);
+  const pts = (k) => use.map((a) => ({ x: a.band[k], y: a[k], w: a.w }));
   return { n: use.length, sys: fitChannel(pts("sys"), prior.sys), dia: fitChannel(pts("dia"), prior.dia) };
 }
 
@@ -106,25 +123,28 @@ const meanAbs = (xs) => (xs.length ? xs.reduce((a, x) => a + Math.abs(x), 0) / x
 const meanOf = (xs) => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : null);
 
 /**
- * Time-ordered check: each anchor is predicted three ways from what was known just before it — the band as-is, the
- * band calibrated on earlier anchors only, and the previous cuff sitting — and the misses are compared on the same
- * anchors (those with a band pair and at least one earlier calibrated anchor). Returns the per-anchor rows (newest
- * last), mean absolute misses {raw, cal, last} for systolic and diastolic, the band's raw bias over every pair, and
- * systolic 95% limits of agreement {raw, cal} (Bland & Altman, Lancet 1986).
+ * Time-ordered check: each cuff reading is predicted three ways from what was known before its sitting — the band
+ * as-is, the band calibrated on readings from earlier sittings only, and the previous sitting's average — and the misses
+ * are compared on the same readings (those with a band value and at least one earlier calibrated anchor). Returns the
+ * per-reading rows (newest last), mean absolute misses {raw, cal, last} for systolic and diastolic, the band's raw bias
+ * over every pair, and systolic 95% limits of agreement {raw, cal} (Bland & Altman, Lancet 1986).
  */
 export function validate(A) {
-  const rows = [];
-  A.forEach((a, i) => {
-    const prev = i > 0 ? A[i - 1] : null;
-    if (!a.band) { rows.push({ t: a.t, ms: a.ms, cuff: { sys: a.sys, dia: a.dia }, raw: null, cal: null, last: prev ? { sys: prev.sys, dia: prev.dia } : null, before: 0 }); return; }
-    const c = calibrateAt(A, a.ms, { before: true });
-    rows.push({ t: a.t, ms: a.ms, cuff: { sys: a.sys, dia: a.dia }, raw: { sys: a.band.sys, dia: a.band.dia }, cal: c.n ? apply(c, a.band) : null, last: prev ? { sys: prev.sys, dia: prev.dia } : null, before: c.n });
-  });
+  const rows = [], sits = new Map();
+  for (const a of A) { if (!sits.has(a.sit)) sits.set(a.sit, []); sits.get(a.sit).push(a); }
+  const avg = (rs, k) => rs.reduce((s, r) => s + r[k], 0) / rs.length;
+  for (const a of A) {
+    const p = sits.get(a.sit - 1), last = p ? { sys: avg(p, "sys"), dia: avg(p, "dia") } : null;
+    const base = { t: a.t, ms: a.ms, sit: a.sit, w: a.w, pair: a.band, cuff: { sys: a.sys, dia: a.dia }, last };
+    if (!a.band) { rows.push({ ...base, raw: null, cal: null, before: 0 }); continue; }
+    const c = calibrateAt(A, a.ms, { beforeSit: a.sit });
+    rows.push({ ...base, raw: { sys: a.band.sys, dia: a.band.dia }, cal: c.n ? apply(c, a.band) : null, before: c.n });
+  }
   const scored = rows.filter((r) => r.raw && r.cal && r.last);
   const miss = (k, src) => meanAbs(scored.map((r) => r[src][k] - r.cuff[k]));
   const paired = rows.filter((r) => r.raw), predicted = rows.filter((r) => r.cal);
   // Bland–Altman 95% limits of agreement (bias ± 1.96 SD of the differences); needs 3 differences.
-  const loa = (d) => { if (d.length < 3) return null; const m = meanOf(d), sd = Math.sqrt(d.reduce((a, x) => a + (x - m) ** 2, 0) / (d.length - 1)); return { bias: m, lo: m - 1.96 * sd, hi: m + 1.96 * sd, n: d.length }; };
+  const loa = (d) => { if (d.length < 3) return null; const m = meanOf(d), sd = Math.sqrt(d.reduce((s2, x) => s2 + (x - m) ** 2, 0) / (d.length - 1)); return { bias: m, lo: m - 1.96 * sd, hi: m + 1.96 * sd, n: d.length }; };
   return {
     rows, n: scored.length, pairs: paired.length,
     sys: { raw: miss("sys", "raw"), cal: miss("sys", "cal"), last: miss("sys", "last") },
@@ -136,7 +156,7 @@ export function validate(A) {
 
 /**
  * The calibrated line between `from` and `to` (ms): band readings averaged into `bucketMin`-minute buckets (0 = every
- * reading), each calibrated with the anchors weighted by their distance from that bucket in time. Returns
+ * reading), each calibrated with the cuff readings nearest that day (calibrateAt). Returns
  * [{ms, raw: {sys, dia}, sys, dia, sysSd, diaSd, n}].
  */
 export function series(B, A, from, to, bucketMin = 0) {
@@ -173,8 +193,27 @@ export function dip(points, windows, to) {
   return { daySys, nightSys, dayDia, nightDia, sys: ((daySys - nightSys) / daySys) * 100, dia: ((dayDia - nightDia) / dayDia) * 100, nNight: night.length, nDay: day.length };
 }
 
-/** Everything the BP screens need, in one pass. `now` in ms. */
-export function bpBand(cuff, bandRows, { now = Date.now() } = {}) {
+/**
+ * How the band paces its BP measurements, from every attempt [{t, ok}] (ok = a good reading; failed ones have hr = 0):
+ * {interval (min), last (ms of the newest attempt), lastGood (ms), next (ms of the next expected slot after `now`),
+ *  recent: [{ms, ok}] attempts in the last `hours`, okShare (good share of attempts in the last 24 h)} or null.
+ */
+export function pacing(attempts, now = Date.now(), hours = 3) {
+  const at = (attempts ?? []).map((r) => ({ ms: r.ms ?? toMs(r.t), ok: !!r.ok })).sort((a, b) => a.ms - b.ms);
+  if (!at.length) return null;
+  const recent2d = at.filter((a) => a.ms >= now - 2 * 864e5), gaps = [];
+  for (let i = 1; i < recent2d.length; i++) gaps.push(Math.round((recent2d[i].ms - recent2d[i - 1].ms) / 60e3));
+  gaps.sort((a, b) => a - b);
+  const interval = gaps.length ? Math.max(5, gaps[gaps.length >> 1]) : 10, last = at[at.length - 1].ms;
+  let next = last + interval * 60e3;
+  while (next <= now) next += interval * 60e3;
+  const day = at.filter((a) => a.ms >= now - 864e5), good = [...at].reverse().find((a) => a.ok);
+  return { interval, last, lastGood: good ? good.ms : null, next, recent: at.filter((a) => a.ms >= now - hours * 36e5), okShare: day.length ? day.filter((a) => a.ok).length / day.length : null };
+}
+
+/** Everything the BP screens need, in one pass. `bandRows` are good readings; `attempts` (optional) every slot. */
+export function bpBand(cuff, bandRows, { now = Date.now(), attempts = null } = {}) {
   const B = prepBand(bandRows), A = anchors(cuff ?? [], B), cal = calibrateAt(A, now), last = B[B.length - 1] ?? null;
-  return { B, A, cal, check: validate(A), latest: last ? { t: last.t, ms: last.ms, raw: { sys: last.sys, dia: last.dia }, ...apply(calibrateAt(A, last.ms), last) } : null };
+  return { B, A, cal, check: validate(A), pace: pacing(attempts ?? B.map((b) => ({ ms: b.ms, ok: true })), now),
+    latest: last ? { t: last.t, ms: last.ms, raw: { sys: last.sys, dia: last.dia }, ...apply(calibrateAt(A, last.ms), last) } : null };
 }
