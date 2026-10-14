@@ -1,27 +1,27 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20261014180338";
-import * as db from "./core/db.js?v=20261014180338";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261014180338";
-import { stamp } from "./core/time.js?v=20261014180338";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261014180338";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261014180338";
-import { scoreDays } from "./analytics/scores.js?v=20261014180338";
-import { mergeLabPanel } from "./analytics/labs.js?v=20261014180338";
-import { apply, bandAt, calibrateAt } from "./analytics/bpcal.js?v=20261014180338";
-import { buildModel } from "./v3/model.js?v=20261014180338";
-import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261014180338";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261014180338";
-import { drill, M } from "./v3/drill.js?v=20261014180338";
-import { today } from "./v3/today.js?v=20261014180338";
-import { night } from "./v3/night.js?v=20261014180338";
-import { trends } from "./v3/trends.js?v=20261014180338";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261014180338";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20261014180338";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261014180338";
-import { advSheet } from "./v3/advanced.js?v=20261014180338";
-import { explainSheet } from "./v3/explain.js?v=20261014180338";
-import { cycleView } from "./v3/cycleui.js?v=20261014180338";
+import { Band } from "./core/ble.js?v=20261014181550";
+import * as db from "./core/db.js?v=20261014181550";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261014181550";
+import { stamp } from "./core/time.js?v=20261014181550";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261014181550";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261014181550";
+import { scoreDays } from "./analytics/scores.js?v=20261014181550";
+import { mergeLabPanel } from "./analytics/labs.js?v=20261014181550";
+import { apply, bandAt, calibrateAt } from "./analytics/bpcal.js?v=20261014181550";
+import { buildModel } from "./v3/model.js?v=20261014181550";
+import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261014181550";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261014181550";
+import { drill, M } from "./v3/drill.js?v=20261014181550";
+import { today } from "./v3/today.js?v=20261014181550";
+import { night } from "./v3/night.js?v=20261014181550";
+import { trends } from "./v3/trends.js?v=20261014181550";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261014181550";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20261014181550";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261014181550";
+import { advSheet } from "./v3/advanced.js?v=20261014181550";
+import { explainSheet } from "./v3/explain.js?v=20261014181550";
+import { cycleView } from "./v3/cycleui.js?v=20261014181550";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -354,7 +354,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261014180338");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261014181550");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -628,7 +628,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20261014180338");
+    const { seedDemo } = await import("./demo.js?v=20261014181550");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

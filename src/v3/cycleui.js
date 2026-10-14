@@ -2,8 +2,8 @@
 // cycle day and phase, the retrospective temperature shift (ovulation confirmed after the fact), estimated
 // fertile window and next period, cycle history and perimenopause staging. Estimates only; never
 // contraception-grade.
-import { tempC } from "../core/units.js?v=20261014180338";
-import { css, D, dname, esc, MON, S, sc, smooth, st, tUnit } from "./kit.js?v=20261014180338";
+import { tempC } from "../core/units.js?v=20261014181550";
+import { css, D, dname, esc, MON, S, sc, smooth, st, tUnit } from "./kit.js?v=20261014181550";
 
 const PHASE = { period: ["Period", "--bad"], follicular: ["Follicular", "--breath"], fertile: ["Fertile window (estimate)", "--act"], luteal: ["Luteal", "--sleep"], late: ["Period late", "--watch"], unknown: ["Log a period to start", "--ink3"] };
 const dt = (s) => new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));

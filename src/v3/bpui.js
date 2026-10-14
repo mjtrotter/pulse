@@ -1,12 +1,12 @@
 // Measure → Blood pressure. The band's own estimate, charted continuously and calibrated to your cuff readings, which
 // sit on the same chart as anchors (analytics/bpcal.js). Cuff readings alone set the home average, its category and
 // heart risk (the AHA advises against cuffless readings for diagnosis); the calibrated line shows what happens between.
-import { dip, series, Z80 } from "../analytics/bpcal.js?v=20261014180338";
-import { toMs } from "../core/time.js?v=20261014180338";
-import { bpCategory, bpSummary } from "./bp.js?v=20261014180338";
-import { bpDetail } from "./riskui.js?v=20261014180338";
-import { mean } from "./stats.js?v=20261014180338";
-import { ampm, css, D, DAYS, hr12, MON, poly, relMin, S, sc, scrubbable, sign, smoothRuns, st, uid } from "./kit.js?v=20261014180338";
+import { dip, series, Z80 } from "../analytics/bpcal.js?v=20261014181550";
+import { toMs } from "../core/time.js?v=20261014181550";
+import { bpCategory, bpSummary } from "./bp.js?v=20261014181550";
+import { bpDetail } from "./riskui.js?v=20261014181550";
+import { mean } from "./stats.js?v=20261014181550";
+import { ampm, css, D, DAYS, hr12, MON, poly, relMin, S, sc, scrubbable, sign, smoothRuns, st, uid } from "./kit.js?v=20261014181550";
 
 /** [days, label, bucket minutes] for each chart window. */
 const WINS = [["1", "24H", 30], ["7", "7D", 120], ["30", "30D", 360], ["90", "90D", 1440]];
@@ -66,7 +66,7 @@ function chart(R, days, bucket, now) {
   const per = bucket >= 1440 ? "day" : bucket >= 60 ? `${bucket / 60} h` : `${bucket} min`;
   const scrub = [
     ...pts.map((p) => [x(p.ms), cy(p.sys), `${when(p.ms)} · ${per} average · band <b>${bpTxt(p.sys, p.dia)}</b>${nCal ? ` <span class="muted">(as measured ${bpTxt(p.raw.sys, p.raw.dia)}; 80% range ${r0(p.sys - Z80 * p.sysSd)}–${r0(p.sys + Z80 * p.sysSd)})</span>` : ""}`]),
-    ...cuff.map((a) => [x(a.ms), cy(a.sys), `${when(a.ms)} · cuff <b>${bpTxt(a.sys, a.dia)}</b>${a.n > 1 ? ` (${a.n} readings)` : ""} · ${a.band ? `band as measured ${bpTxt(a.band.sys, a.band.dia)}` : "no band reading within 30 min"}`]),
+    ...cuff.map((a) => [x(a.ms), cy(a.sys), `${when(a.ms)} · cuff <b>${bpTxt(a.sys, a.dia)}</b>${a.n > 1 ? ` (${a.n} readings)` : ""}${a.pulse ? ` · pulse ${r0(a.pulse)}` : ""} · ${a.band ? `band as measured ${bpTxt(a.band.sys, a.band.dia)}` : "no band reading within 30 min"}`]),
   ].sort((a, b) => a[0] - b[0]);
   const idle = nCal ? `<span class="lgd"><i class="l"></i>Band, calibrated to your cuff (shaded: 80% range)</span><span class="lgd"><i class="d"></i>As the band measured it</span><span class="lgd"><i class="c"></i>Cuff reading</span>`
     : `<span class="lgd"><i class="l"></i>Band, as measured (not calibrated yet)</span><span class="lgd"><i class="c"></i>Cuff reading</span>`;
@@ -96,6 +96,43 @@ function bandCard(R) {
       <button class="cta ghost" data-sheet="bp" style="margin-top:12px">Log a cuff reading</button></div>`;
 }
 
+/** Bland–Altman limits for the band as measured and after calibration (systolic), once there are 3 pairs. */
+function agreeLine(v) {
+  const a = v.agree?.raw, c = v.agree?.cal, rng = (z) => `${signed(z.lo)} to ${signed(z.hi)}`;
+  if (!a) return "";
+  return `<p class="note">95% limits of agreement with your cuff (systolic): as measured <b>${rng(a)}</b> mmHg${c ? `; calibrated <b>${rng(c)}</b>` : ""}. A narrower span means individual readings can be trusted more, not just the average (Bland & Altman 1986).</p>`;
+}
+
+/** The leave-one-out check of whether heart rate, skin temperature, activity and time of day add anything. */
+function contextBlock(C) {
+  if (!C) return "";
+  if (C.need > 0) return `<p class="note">With 14 cuff readings Pulse also tests whether your heart rate, skin temperature, recent steps and time of day add anything beyond the band's own estimate (${C.n} of 14 so far).</p>`;
+  const M = Object.fromEntries((C.models ?? []).map((z) => [z.name, z]));
+  if (!M.ridge || !M.bandCalibrated) return "";
+  const gain = M.bandCalibrated.maeSys - M.ridge.maeSys, f = (z) => (z?.maeSys != null ? z.maeSys.toFixed(1) : "—");
+  return `<div class="sub-h">Could other signals help?</div>
+    <div class="kv">${[["Your average cuff reading", f(M.mean)], ["Your previous cuff reading", f(M.lastCuff)], ["Band, straight-line fit", f(M.bandCalibrated)], ["Band + heart rate, skin temp, steps, time of day", f(M.ridge)]].map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("")}</div>
+    <p class="note">Average systolic miss in mmHg over ${C.n} cuff readings, each left out in turn and predicted from the rest (ridge regression for the last row). ${gain >= 2 ? `For you these signals cut the miss by ${gain.toFixed(1)} mmHg, so they carry real information about your blood pressure.` : "For you they don't yet improve on the band's own estimate by the 2 mmHg it takes to count, so the line above uses the band alone."}</p>`;
+}
+
+/** Your cuff's 7-day average over the last 90 days (sittings averaged first, at least 2 in the window). */
+function cuffTrend() {
+  const now = Date.now(), from = now - 90 * 864e5;
+  const A = (D.advData?.bp?.A ?? []).filter((a) => a.ms >= from - 7 * 864e5);
+  if (A.length < 3) return "";
+  const pts = [];
+  for (let t = Math.max(from, A[0].ms + 864e5); t <= now; t += 864e5) {
+    const w = A.filter((a) => a.ms > t - 7 * 864e5 && a.ms <= t);
+    if (w.length >= 2) pts.push({ t, sys: mean(w.map((a) => a.sys)), dia: mean(w.map((a) => a.dia)), n: w.length });
+  }
+  if (pts.length < 2) return "";
+  const W0 = 340, H = 120, X0 = 30, x = sc(pts[0].t, now, X0, W0 - 6), lo = Math.min(70, ...pts.map((p) => p.dia)) - 4, hi = Math.max(140, ...pts.map((p) => p.sys)) + 4, y = sc(lo, hi, H - 18, 6);
+  let body = [80, 130].map((v) => `<line x1="${X0}" x2="${W0 - 6}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--watch")}" stroke-opacity=".55" stroke-dasharray="3 3"/><text x="${X0 - 4}" y="${y(v) + 4}" text-anchor="end" class="axis">${v}</text>`).join("");
+  body += `<path d="${smoothRuns(pts.map((p) => [x(p.t), y(p.sys)]), 0.14)}" fill="none" stroke="${css("--ink")}" stroke-width="2"/><path d="${smoothRuns(pts.map((p) => [x(p.t), y(p.dia)]), 0.14)}" fill="none" stroke="${css("--ink")}" stroke-width="1.7" opacity=".55"/>`;
+  body += [pts[0].t, now].map((t, i) => { const d = new Date(t); return `<text x="${x(t)}" y="${H - 3}" text-anchor="${i ? "end" : "start"}" class="axis">${i ? "today" : `${MON[d.getMonth()]} ${d.getDate()}`}</text>`; }).join("");
+  return `<div class="sub-h">Cuff 7-day average over time</div>${scrubbable(uid("s"), W0, H, body, pts.map((p) => [x(p.t), y(p.sys), `${dayName(p.t)} · 7-day average <b>${bpTxt(p.sys, p.dia)}</b> from ${p.n} sittings`]), "Each point averages your cuff sittings in the 7 days before it. Dashed: the 130/80 home stage-1 line.")}`;
+}
+
 function calCard(R) {
   const v = R.check, n = R.cal.n, cuffN = (D.bp ?? []).length;
   const head = `<div class="lbl" style="margin-bottom:8px">How your cuff anchors the band <button class="xi" data-explain="bpest" aria-label="How the calibration works">i</button></div>`;
@@ -110,16 +147,18 @@ function calCard(R) {
     const X = sc(0, Math.max(v.sys.raw, v.sys.cal, v.sys.last) * 1.12 || 1, 0, 170);
     const bar = (label, val, col) => `<div><span>${label}</span>${S(170, 12, `<rect x="0" y="2" width="${Math.max(2, X(val)).toFixed(1)}" height="8" rx="4" fill="${css(col)}" opacity=".85"/>`)}<b>${val.toFixed(1)}</b></div>`;
     acc = `<div class="cmp">${bar("Band as measured", v.sys.raw, "--bad")}${bar("Band, calibrated", v.sys.cal, "--good")}${bar("Your previous cuff reading", v.sys.last, "--ink3")}</div>
-      <p class="note">Average miss in systolic mmHg over ${v.n} reading${v.n > 1 ? "s" : ""}, each predicted only from the readings before it. Diastolic: ${v.dia.raw.toFixed(1)} as measured, ${v.dia.cal.toFixed(1)} calibrated, ${v.dia.last.toFixed(1)} for the previous cuff reading.${v.sys.cal >= v.sys.last ? " The calibrated band isn't yet closer than simply reusing your last cuff reading; more anchors at different times of day help it learn your swings." : ""}</p>`;
+      <p class="note">Average miss in systolic mmHg over ${v.n} reading${v.n > 1 ? "s" : ""}, each predicted only from the readings before it. Diastolic: ${v.dia.raw.toFixed(1)} as measured, ${v.dia.cal.toFixed(1)} calibrated, ${v.dia.last.toFixed(1)} for the previous cuff reading.${v.sys.cal >= v.sys.last ? " The calibrated band isn't yet closer than simply reusing your last cuff reading; more anchors at different times of day help it learn your swings." : ""}</p>
+      ${agreeLine(v)}`;
   } else acc = `<p class="note">Accuracy appears from your second anchored reading: each new cuff reading becomes a test the band hasn't seen.</p>`;
   const rows = v.rows.filter((r) => r.raw).reverse(), open = st.open.has("bp-anchors"), shown = open ? rows : rows.slice(0, 4);
   const anc = shown.map((r) => {
     const miss = r.cal ? [r.cal.sys - r.cuff.sys, r.cal.dia - r.cuff.dia] : null, worst = miss ? Math.max(Math.abs(miss[0]), Math.abs(miss[1])) : null;
-    return `<div><span>${when(r.ms)}</span><b>${bpTxt(r.cuff.sys, r.cuff.dia)}</b><em>Band as measured ${bpTxt(r.raw.sys, r.raw.dia)}${r.cal ? `; calibrated from the ${r.before} reading${r.before > 1 ? "s" : ""} before it: ${bpTxt(r.cal.sys, r.cal.dia)} <span class="${worst <= 5 ? "ok" : worst <= 10 ? "lo" : "hi"}">(off by ${signed(miss[0])}/${signed(miss[1])})</span>` : " (first anchor: nothing earlier to predict it from)"}</em></div>`;
+    return `<div><span>${when(r.ms)}${minOf(r.ms) < 720 ? " · morning" : minOf(r.ms) < 1020 ? " · afternoon" : " · evening"}</span><b>${bpTxt(r.cuff.sys, r.cuff.dia)}</b><em>Band as measured ${bpTxt(r.raw.sys, r.raw.dia)}${r.cal ? `; calibrated from the ${r.before} reading${r.before > 1 ? "s" : ""} before it: ${bpTxt(r.cal.sys, r.cal.dia)} <span class="${worst <= 5 ? "ok" : worst <= 10 ? "lo" : "hi"}">(off by ${signed(miss[0])}/${signed(miss[1])})</span>` : " (first anchor: nothing earlier to predict it from)"}</em></div>`;
   }).join("");
   return `<div class="card rise" style="--i:7">${head}
       <p class="cal-sum">For you the band reads ${off(s.offset, "systolic")} and ${off(d.offset, "diastolic")}; Pulse adds that back.${slopeKnown ? ` Your cuff moves about ${s.slope.toFixed(1)}× as much as the band does, so its swings are ${s.slope > 1 ? "stretched" : "shrunk"} to match.` : ""}</p>
       ${acc}
+      ${contextBlock(R.context)}
       <div class="sub-h">Anchors<span>${n} of ${cuffN} sitting${cuffN > 1 ? "s" : ""} paired</span></div>
       <div class="kv anc">${anc}</div>
       ${rows.length > 4 ? `<button class="more" data-expand="bp-anchors">${open ? "Show fewer" : `Show all ${rows.length}`}</button>` : ""}
@@ -130,5 +169,5 @@ function calCard(R) {
 export function bpBlock() {
   const R = D.advData?.bp ?? { B: [], A: [], cal: { n: 0 }, check: { rows: [], n: 0 }, latest: null };
   if (!R.B.length && !(D.bp ?? []).length) return `<div class="card rise" style="--i:6"><p class="note" style="margin:0 0 12px">No readings yet. The band records a blood-pressure estimate every 10 minutes while worn; log a few home cuff readings to anchor it to you. A week of morning and evening cuff readings also gives a reliable home average (AHA) for your heart-risk estimate.</p><button class="cta" data-sheet="bp">Log a cuff reading</button></div>`;
-  return bandCard(R) + calCard(R) + bpDetail(D.profile ?? {});
+  return bandCard(R) + calCard(R) + bpDetail(D.profile ?? {}, cuffTrend());
 }

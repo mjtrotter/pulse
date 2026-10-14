@@ -3,21 +3,25 @@
 // act. Zones come only from published cut-offs; where none exist (most HRV and wearable-derived measures) the
 // guide says so and judges the number against YOUR OWN usual instead. Rows and tiles open a guide with
 // data-explain="<key>"; the guide reads the current value itself, so callers pass nothing else.
-import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261014180338";
-import { advBody } from "./advanced.js?v=20261014180338";
-import { analyze, analyzed, current } from "./measure.js?v=20261014180338";
-import { bpCategory, bpSummary } from "./bp.js?v=20261014180338";
-import { bandDip } from "./bpui.js?v=20261014180338";
-import { ANALYTES, bmiOf, labLabel, latestLabs, preventResult } from "./labsui.js?v=20261014180338";
-import { LABGUIDE } from "./labguide.js?v=20261014180338";
-import { tierChip, whatMoved } from "./riskui.js?v=20261014180338";
-import { calibrateAt, Z80 } from "../analytics/bpcal.js?v=20261014180338";
-import { bodyIndices } from "../analytics/body.js?v=20261014180338";
-import { derived } from "../analytics/labs.js?v=20261014180338";
-import { PHENO_AGE_YEARS, PHENO_REF, phenoChange, phenoParts, preventGroups, workings, zonesFor } from "../analytics/labcalc.js?v=20261014180338";
-import { preventBreakdown } from "../analytics/prevent.js?v=20261014180338";
-import { isUS } from "../core/units.js?v=20261014180338";
-import { ampm, clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261014180338";
+import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261014181550";
+import { advBody } from "./advanced.js?v=20261014181550";
+import { analyze, analyzed, current } from "./measure.js?v=20261014181550";
+import { bpCategory, bpSummary } from "./bp.js?v=20261014181550";
+import { bandDip } from "./bpui.js?v=20261014181550";
+import { ANALYTES, bmiOf, labLabel, latestLabs, preventResult } from "./labsui.js?v=20261014181550";
+import { LABGUIDE } from "./labguide.js?v=20261014181550";
+import { tierChip, whatMoved } from "./riskui.js?v=20261014181550";
+import { calibrateAt, Z80 } from "../analytics/bpcal.js?v=20261014181550";
+import { bodyIndices } from "../analytics/body.js?v=20261014181550";
+import { metabolicSyndrome } from "../analytics/riskctx.js?v=20261014181550";
+import { sleepNeed } from "../analytics/sleep.js?v=20261014181550";
+import { homeBP, sessions } from "../analytics/homebp.js?v=20261014181550";
+import { toMs } from "../core/time.js?v=20261014181550";
+import { derived } from "../analytics/labs.js?v=20261014181550";
+import { PHENO_AGE_YEARS, PHENO_REF, phenoChange, phenoParts, preventGroups, workings, zonesFor } from "../analytics/labcalc.js?v=20261014181550";
+import { preventBreakdown } from "../analytics/prevent.js?v=20261014181550";
+import { isUS } from "../core/units.js?v=20261014181550";
+import { ampm, clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261014181550";
 
 const TIER = { good: "Optimal", watch: "Borderline", bad: "Risk" };
 const num = (v) => v != null && Number.isFinite(v);
@@ -227,9 +231,15 @@ export const GUIDE = {
   // ---------------------------------------------------------------- overnight vitals
   rhr: {
     title: "Resting heart rate (asleep)", unit: "bpm", scale: [38, 100], fmt: (v) => v.toFixed(0),
+    calc() {
+      const h = nightH(), hr = h?.summary?.night?.hr;
+      if (!hr?.rhr) return "<p>Needs a night with heart rate.</p>";
+      return worked([`lowest 30-minute average between ${h.fallback ? "midnight and 6 AM (no sleep record that night)" : "falling asleep and waking"} = ${hr.rhr.toFixed(1)} bpm`, ...(h.rhrTime ? [`reached ${ampm(+h.rhrTime.slice(11, 13) * 60 + +h.rhrTime.slice(14, 16))}${h.nadirFrac != null ? `, ${Math.round(h.nadirFrac * 100)}% of the way through your sleep` : ""}`] : []), ...(hr.mean != null ? [`for comparison, your average while asleep: ${hr.mean.toFixed(1)} bpm`] : [])])
+        + `<p class="calc-n">A heart rate that bottoms out early in the night is typical of good recovery; a late low point often follows alcohol, a late meal or late exercise.</p>`;
+    },
     live: () => ({ v: nightH()?.rhr ?? null }),
     zones: () => [[40, "watch", "Very low", "Fine in endurance athletes; with dizziness or fainting, ask a clinician."], [70, "good", "Optimal"], [80, "watch", "Higher than ideal"], [Infinity, "bad", "High"]],
-    what: "Your lowest steady heart rate between midnight and 6 AM. It is the cleanest daily read of how hard your heart works at rest, and it is stable enough that small changes mean something.",
+    what: "Your lowest steady heart rate while asleep: the lowest 30-minute average between falling asleep and waking (midnight to 6 AM on a night the band has no sleep record). It is the cleanest daily read of how hard your heart works at rest, and it is stable enough that small changes mean something.",
     read: "A lower resting rate generally goes with better fitness and lower mortality (about 9% higher all-cause mortality per 10 bpm in large studies), within the healthy range. What matters most is <b>your own baseline</b>: a rise of 3 bpm over your usual for a night, or 4 bpm two nights running, is the pattern behind Pulse's illness watch. Falling slowly over months usually tracks improving fitness.",
     moves: "Lower: aerobic fitness, good sleep, cool room. Higher: alcohol (strongly), late meals, late hard exercise, fever and infection, stress, dehydration, heat, poor sleep, caffeine, some medicines; in the second half of the menstrual cycle it runs about 2 bpm higher.",
     act: "A resting rate that stays 10 or more bpm above your usual for several days without an obvious reason, especially with fever, breathlessness or chest discomfort, is worth a call.",
@@ -239,6 +249,15 @@ export const GUIDE = {
   },
   rhrtrend: {
     title: "Resting heart rate trend", unit: "bpm/mo", fmt: (v) => v.toFixed(1),
+    calc() {
+      const r = D.hist.slice(-30).map((z, i) => [i, z.rhr]).filter((p) => p[1] != null);
+      if (r.length < 10) return "<p>Needs 10 nights in the last 30.</p>";
+      const n = r.length, mx = r.reduce((a, p) => a + p[0], 0) / n, my = r.reduce((a, p) => a + p[1], 0) / n, sxx = r.reduce((a, p) => a + (p[0] - mx) ** 2, 0);
+      const b = r.reduce((a, p) => a + (p[0] - mx) * (p[1] - my), 0) / sxx, se = Math.sqrt(r.reduce((a, p) => a + (p[1] - (my + b * (p[0] - mx))) ** 2, 0) / (n - 2) / sxx);
+      return formula("slope = Σ(day − mean day)(RHR − mean RHR) ÷ Σ(day − mean day)²")
+        + worked([`${n} nights, average ${my.toFixed(1)} bpm`, `slope ${b >= 0 ? "+" : "−"}${Math.abs(b).toFixed(3)} bpm a night × 30 = ${b >= 0 ? "+" : "−"}${Math.abs(b * 30).toFixed(1)} bpm a month`, `95% range ±${(1.96 * se * 30).toFixed(1)} bpm a month`])
+        + `<p class="calc-n">${Math.abs(b * 30) < 1.96 * se * 30 ? "The range crosses zero, so this isn't a real trend yet." : "The range doesn't cross zero, so the trend is more than night-to-night noise."}</p>`;
+    },
     live() {
       const r = D.hist.slice(-30).map((z, i) => [i, z.rhr]).filter((p) => p[1] != null);
       if (r.length < 10) return { v: null };
@@ -252,6 +271,12 @@ export const GUIDE = {
   },
   hrv: {
     title: "Overnight HRV (RMSSD)", unit: "ms", fmt: (v) => v.toFixed(0),
+    calc() {
+      const h = nightH();
+      if (h?.hrv == null) return "<p>Needs a night with the band's pulse-interval recordings.</p>";
+      return formula("RMSSD = √(average of (gap − previous gap)²) over each ~80-second pulse recording")
+        + worked(h.hrvSrc === "ppi" ? [`${h.hrvOf} pulse recordings overnight; ${h.hrvN} clean enough to use (movement and dropped beats rejected)`, `median RMSSD across them = ${h.hrv.toFixed(1)} ms`] : [`the band's own HRV estimate (median of ${h.hrvN} readings) = ${h.hrv.toFixed(1)} ms`, "Pulse's own calculation needs the band's pulse-interval recordings, which weren't available for this night"]);
+    },
     get scale() { const n = HRV_NORM[decade(age())]; return [0, Math.round(n[1] * 1.7)]; },
     live: () => ({ v: nightH()?.hrv ?? null }),
     zones() { const n = HRV_NORM[decade(age())]; return [[n[0], "watch", "Below typical for your age"], [n[1], "good", "Typical for your age"], [Infinity, "good", "Above typical", "Common in younger or very fit people, but see the note on irregular rhythm below."]]; },
@@ -265,6 +290,11 @@ export const GUIDE = {
   },
   breath: {
     title: "Breathing rate (asleep)", unit: "/min", scale: [8, 26], fmt: (v) => v.toFixed(1),
+    calc() {
+      const h = nightH(), r = h?.summary?.night?.resp;
+      if (h?.br == null) return "<p>Needs a night with the band's pulse-interval recordings.</p>";
+      return worked([`each clean ~80-second pulse recording: the strongest rhythm in the beat-to-beat gaps between 9 and 30 a minute (your breathing speeds and slows the heart)`, `median across ${r?.n ?? "the"} recordings with a clear rhythm (3 needed) = ${h.br.toFixed(1)} breaths a minute`]);
+    },
     live: () => ({ v: nightH()?.br ?? null }),
     zones: () => [[12, "watch", "Slow"], [17, "good", "Optimal"], [21, "watch", "Upper normal"], [Infinity, "bad", "Fast", "Above 20 breaths a minute at rest."]],
     what: "How many breaths you take per minute while asleep, estimated from the way your pulse speeds and slows with each breath (respiratory sinus arrhythmia) in the band's overnight recordings.",
@@ -277,6 +307,11 @@ export const GUIDE = {
   },
   spo2: {
     title: "Oxygen while asleep", unit: "%", scale: [84, 100], fmt: (v) => v.toFixed(0),
+    calc() {
+      const h = nightH();
+      if (h?.spo2 == null) return "<p>Needs a night with oxygen readings.</p>";
+      return worked([`${h.spo2N} spot readings while asleep (one every 10 minutes on Pulse's schedule)`, `median ${h.spo2}%, lowest ${h.spo2Min}%${h.spo2Below90 ? `, ${h.spo2Below90} under 90%` : ""}`]);
+    },
     live() { const h = nightH(); return { v: h?.spo2 ?? null, text: h?.spo2Min != null ? `Lowest spot reading <b>${h.spo2Min}%</b>${h.spo2Below90 ? `, with ${h.spo2Below90} reading${h.spo2Below90 > 1 ? "s" : ""} under 90%` : ""}.` : "" }; },
     zones: () => [[90, "bad", "Low", "Sustained readings under 90% are the range clinicians call low oxygen."], [95, "watch", "Borderline", "Low-normal; common at altitude and with some lung conditions."], [Infinity, "good", "Optimal"]],
     what: "The percentage of your blood's oxygen-carrying capacity that is actually loaded with oxygen, read by shining light through the skin of your wrist every ten minutes through the night. The headline is the median; the lowest reading is shown separately.",
@@ -289,6 +324,12 @@ export const GUIDE = {
   },
   temp: {
     title: "Skin temperature", unit: "", scale: [-1, 1], fmt: (v) => `${tDelta(v) >= 0 ? "+" : ""}${tDelta(v).toFixed(1)}°`,
+    calc() {
+      const h = nightH();
+      if (h?.tdev == null || h.tempC == null) return "<p>Needs a night with temperature readings and a few earlier nights to compare.</p>";
+      const usual = h.tempC - h.tdev, T = (c) => (tUnit() === "°F" ? `${(c * 1.8 + 32).toFixed(1)} °F` : `${c.toFixed(1)} °C`);
+      return worked([`last night's median wrist temperature ${T(h.tempC)}`, `minus your usual (median of the previous 28 nights) ${T(usual)}`, `= ${tDelta(h.tdev) >= 0 ? "+" : "−"}${Math.abs(tDelta(h.tdev)).toFixed(2)}${tUnit()}`]);
+    },
     live() { const h = nightH(); return { v: h?.tdev ?? null }; },
     zones: () => [[-0.5, "watch", "Cooler than usual", "Often room, bedding or a loose band."], [0.2, "good", "Within your usual swing"], [0.5, "watch", "Warm", "A second warm night in a row is what Pulse flags."], [Infinity, "bad", "Running hot"]],
     what: "Wrist skin temperature overnight, shown as the difference from <i>your own</i> typical night (the median of your previous four weeks). The absolute number depends on the room, the bedding and where the band sits, so only the change is meaningful. It is not core body temperature.",
@@ -302,6 +343,14 @@ export const GUIDE = {
   // ---------------------------------------------------------------- sleep and body clock
   sri: {
     title: "Sleep regularity (SRI)", unit: "", scale: [40, 100], fmt: (v) => v.toFixed(0),
+    calc() {
+      const r = D.advData?.sri;
+      if (!r) return "<p>Needs 5 days with sleep records.</p>";
+      const share = (r.sri + 100) / 200;
+      return formula("SRI = 200 × (share of minutes in the same state as 24 hours later) − 100")
+        + worked([`${r.pairs.toLocaleString()} minute pairs, each exactly 24 h apart, over ${r.days} days`, `in the same state (both asleep or both awake): ${(share * 100).toFixed(1)}%`, `200 × ${share.toFixed(3)} − 100 = ${r.sri.toFixed(0)}`])
+        + `<p class="calc-n">Asleep or awake for each minute comes from the band's sleep record. Pulse uses your last 14 days.</p>`;
+    },
     live: () => ({ v: D.advData?.sri?.sri ?? null }),
     zones: () => [[74, "watch", "Irregular", "The least regular quarter of 60,000 adults."], [86, "good", "Typical"], [Infinity, "good", "Very regular", "The most regular quarter."]],
     what: "The chance that you are in the same state (asleep or awake) at any two moments exactly 24 hours apart, scaled 0–100. 100 means identical every day; about 0 means no pattern at all. Unlike \"hours slept\", it catches shifting bedtimes and weekend catch-up.",
@@ -313,6 +362,13 @@ export const GUIDE = {
   },
   chrono: {
     title: "Social jetlag and chronotype", unit: "min", scale: [0, 180], fmt: (v) => v.toFixed(0),
+    calc() {
+      const c = D.advData?.chrono;
+      if (!c) return "<p>Needs 2 weekend and 3 weekday nights with sleep records.</p>";
+      return worked([`mid-sleep on free nights (weekends): ${ampm(c.msf)}, average of ${c.nFree} nights`, `mid-sleep on work nights: ${ampm(c.msw)}, average of ${c.nWork} nights`, `social jetlag = the gap between them = ${Math.round(c.socialJetlag)} min`,
+        c.msfsc != null && Math.abs(c.msfsc - c.msf) >= 1 ? `chronotype, corrected for weekend catch-up sleep (free-night mid-sleep minus half the extra sleep you get on free nights compared with your weekly average): ${ampm(c.msfsc)}` : "chronotype: no weekend catch-up sleep to correct for, so it's the free-night mid-sleep"])
+        + `<p class="calc-n">Mid-sleep is halfway between falling asleep and waking. Averages are taken around the clock, so 11:30 PM and 12:30 AM average to midnight.</p>`;
+    },
     live() { const c = D.advData?.chrono; return { v: c ? c.socialJetlag : null, text: c ? `Your free-day mid-sleep is about <b>${clock(c.msfsc ?? c.msf)}</b>; weekdays run <b>${Math.round(c.socialJetlag)} min</b> off it.` : "" }; },
     zones: () => [[60, "good", "Under 1 hour"], [120, "watch", "1–2 hours"], [Infinity, "bad", "Over 2 hours", "Linked in cohort studies with worse metabolic health."]],
     what: "<b>Chronotype</b> is where your body clock naturally sits: the middle of your sleep on days with no alarm (early \"lark\" or late \"owl\"). <b>Social jetlag</b> is how far your weekday sleep timing is from that natural timing, as if you flew a time zone every Friday and flew back on Monday.",
@@ -323,6 +379,14 @@ export const GUIDE = {
   },
   rhythm: {
     title: "Daily rhythm strength", unit: "RA", fmt: (v) => v.toFixed(2),
+    calc() {
+      const r = D.advData?.hrRhythm;
+      if (!r) return "<p>Needs 3 days of all-day heart rate.</p>";
+      const m = r.m10.value, l = r.l5.value;
+      return formula("RA = (M10 − L5) ÷ (M10 + L5)")
+        + worked([`M10, your busiest 10 hours (from ${ampm(r.m10.start * 60)}): ${m.toFixed(1)} bpm`, `L5, your quietest 5 hours (from ${ampm(r.l5.start * 60)}): ${l.toFixed(1)} bpm`, `(${m.toFixed(1)} − ${l.toFixed(1)}) ÷ (${m.toFixed(1)} + ${l.toFixed(1)}) = ${r.ra.toFixed(2)}`])
+        + kvRows([["Interdaily stability (IS)", r.is.toFixed(2), `how alike your hourly heart-rate pattern is across ${r.days} days (variance of the average day ÷ total variance)`], ["Intradaily variability (IV)", r.iv.toFixed(2), "hour-to-hour jumps relative to the overall spread; higher means more fragmented"]]);
+    },
     live() { const r = D.advData?.hrRhythm; return { v: r?.ra ?? null, text: r ? `Heart rate: relative amplitude <b>${r.ra.toFixed(2)}</b>, stability <b>${r.is.toFixed(2)}</b>, fragmentation <b>${r.iv.toFixed(2)}</b>.` : "" }; },
     what: "Three numbers describing how strong and steady your 24-hour rhythm is, from your hourly heart rate. <b>Relative amplitude (RA, 0–1)</b>: how different your busiest ten hours are from your quietest five. <b>Interdaily stability (IS, 0–1)</b>: how alike each day is to the others. <b>Intradaily variability (IV)</b>: how fragmented the day is (more breaks between rest and activity means higher).",
     read: "No validated cut-offs. In research on older adults, a stronger (higher RA), steadier (higher IS) and less fragmented (lower IV) rhythm goes with better health and slower decline, and a weak, irregular rhythm with worse. Compare yourself with yourself over months.",
@@ -332,6 +396,11 @@ export const GUIDE = {
   },
   dip: {
     title: "Night-time heart-rate dip", unit: "%", fmt: (v) => v.toFixed(0),
+    calc() {
+      const h = nightH(), n = h?.summary?.night?.hr?.mean, d = h?.summary?.day?.hr_mean_awake;
+      if (n == null || !d) return "<p>Needs a night with heart rate and the waking hours around it.</p>";
+      return worked([`(awake average ${d.toFixed(1)} − asleep average ${n.toFixed(1)}) ÷ awake ${d.toFixed(1)} × 100`, `= ${(((d - n) / d) * 100).toFixed(1)}%`]);
+    },
     live: () => ({ v: nightH()?.dipPct ?? null }),
     what: "How far your heart rate falls while you sleep compared with the same day awake, as a percentage. In a healthy body the heart rests deeply at night.",
     read: "There is no validated cut-off for heart rate. The familiar \"dipper\" categories (a 10–20% fall is normal) come from blood-pressure research and do not transfer to heart rate, so Pulse does not colour the number as good or bad and judges it against your own nights. A shrinking dip over weeks can accompany illness, heavy alcohol, poor sleep, sleep apnea or stress; a flat one can also appear if your daytime heart rate is simply low.",
@@ -342,6 +411,11 @@ export const GUIDE = {
   },
   cvhr: {
     title: "Cyclic heart-rate pattern", unit: "/h", fmt: (v) => v.toFixed(1),
+    calc() {
+      const c = nightH()?.summary?.night?.cvhr;
+      if (!c) return "<p>Needs a night with heart rate and sleep stages.</p>";
+      return worked([`${c.events} surge-and-fall cycles over ${c.hours} hours asleep`, `= ${(+c.index).toFixed(1)} per hour`]) + `<p class="calc-n">A cycle counts when heart rate dips and then climbs at least 6 bpm within 90 seconds, and another such dip follows 20–90 seconds away (a single dip isn't cyclic). Hours are the asleep hours with heart-rate data. The 6 bpm bar is Pulse's own choice; the method was published on ECG, not wrist heart rate.</p>`;
+    },
     live: () => ({ v: nightH()?.cvhrIndex ?? null }),
     what: "How many times per hour your heart rate surged and fell back in a repeating cycle while you slept. During breathing pauses the heart slows and then speeds up when breathing restarts, leaving this pattern.",
     read: "This is a screening hint, not an apnea index. The method was proven on ECG, not on this band's 5-second wrist heart rate; REM sleep and brief awakenings also cause surges, so the number runs high and cannot be compared with a sleep-study score. Do not read it against clinical cut-offs. Use it as a trend, and with the oxygen readings, the STOP-Bang questions and your partner's report.",
@@ -353,6 +427,14 @@ export const GUIDE = {
   },
   apnea: {
     title: "Sleep apnea screen (STOP-Bang)", unit: "/8", scale: [0, 8], fmt: (v) => v.toFixed(0),
+    calc() {
+      const A = D.advData?.apnea, s = A?.stopBang;
+      if (!s) return "<p>Answer the five STOP-Bang questions in Profile; age, sex and BMI come from your profile.</p>";
+      const L = [["snore", "S · Snoring loudly"], ["tired", "T · Tired during the day"], ["observed", "O · Someone saw you stop breathing"], ["pressure", "P · Treated high blood pressure"], ["bmi35", "B · BMI over 35"], ["age50", "A · Age over 50"], ["neck", "N · Neck over 40 cm"], ["male", "G · Male"]];
+      const o = A.objective;
+      return kvRows(L.map(([k, l]) => [l, s.items[k] ? "1" : "0", ""])) + worked([`${L.map(([k]) => (s.items[k] ? 1 : 0)).join(" + ")} = ${s.score} of 8 (${s.risk} risk)`])
+        + `<p class="calc-n">Supporting signals from the band (not part of the score): ${o?.n >= 7 ? `a night with oxygen under 94%: ${o.spo2Low ? "yes" : "no"}; repeating heart-rate pattern: ${o.cvhr ? "yes" : "no"}; breathing 1.5/min or more above your usual last night: ${o.breathing ? "yes" : "no"}` : `need 7 nights (${o?.n ?? 0} so far)`}.</p>`;
+    },
     live() { const s = D.advData?.apnea?.stopBang; return { v: s ? s.score : null }; },
     zones: () => [[3, "good", "Low risk", "0–2 points"], [5, "watch", "Intermediate risk", "3–4 points"], [Infinity, "bad", "High risk", "5–8 points; a sleep study is advised."]],
     what: "STOP-Bang is a one-minute questionnaire: <b>S</b>noring, <b>T</b>ired, <b>O</b>bserved breathing pauses, <b>P</b>ressure (high blood pressure), then <b>B</b>MI over 35, <b>A</b>ge over 50, <b>N</b>eck over 40 cm and male sex. Each yes is a point, out of 8.",
@@ -363,6 +445,13 @@ export const GUIDE = {
   },
   illness: {
     title: "Illness watch", unit: "",
+    calc() {
+      const I = D.advData?.illness;
+      if (!I?.evidence?.length) return "<p>Needs 7 nights with heart rate.</p>";
+      const val = (e) => (e.value == null ? "—" : e.key === "temp" ? `${e.value > 0 ? "+" : ""}${tDelta(e.value).toFixed(1)}°` : `${e.value > 0 ? "+" : ""}${(+e.value).toFixed(1)}${{ nightSignal: " bpm", cusum: " bpm", breathing: "/min" }[e.key] ?? ""}`);
+      return kvRows(I.evidence.map((e) => [e.label, val(e), e.note]))
+        + `<p class="calc-n">NightSignal is last night's average heart rate while asleep minus your usual (the median of up to 28 earlier nights): a watch at +3 bpm, more at +4 bpm two nights running, counted only when temperature (+0.3 °C), breathing (+1.5/min) or disrupted sleep agree. CuSum works on your resting heart rate: it adds up each night's excess over your usual minus a slack of half your usual swing, and fires when that running sum stays above its threshold two nights running. One detector = <b>watch</b>; both = <b>alert</b>.</p>`;
+    },
     live() { const l = D.advData?.illness?.level ?? "none"; return { v: null, zone: { none: 0, watch: 1, alert: 2 }[l] ?? 0 }; },
     zones: () => [[1, "good", "All clear", "Overnight heart rate, temperature and breathing are within your usual."], [2, "watch", "Watch", "One detector, or a small shift. Rest and watch how you feel."], [Infinity, "bad", "Alert", "Both detectors agree that something is off."]],
     what: "Two independent detectors watch your overnight heart rate against your own usual. One looks for a night 3 bpm higher, or two nights 4 bpm higher, and only counts it when temperature, breathing or disrupted sleep agree. The other is a running-sum change detector for a slow drift. An alert needs both.",
@@ -398,6 +487,13 @@ export const GUIDE = {
   },
   hrr: {
     title: "Heart-rate recovery", unit: "bpm", scale: [0, 50], fmt: (v) => v.toFixed(0), soft: true,
+    calc() {
+      const H = D.advData?.hrr;
+      if (!H?.series?.length) return "<p>Measured after each detected workout (10+ minutes at 40% of your heart-rate reserve or more).</p>";
+      return formula("recovery = heart rate over the last 10 s of the workout − heart rate 60 s later")
+        + kvRows(H.series.slice(-6).reverse().map((z) => [z.date, `${z.hrr60 != null ? Math.round(z.hrr60) : "—"} bpm`, z.hrr120 != null ? `after 2 minutes: ${Math.round(z.hrr120)} bpm` : ""]))
+        + (H.baseline?.hrr60 != null ? `<p class="calc-n">Your usual: ${Math.round(H.baseline.hrr60)} bpm, the median of your earlier workouts.</p>` : "");
+    },
     live() { const h = D.advData?.hrr?.latest; return { v: h?.hrr60 ?? null }; },
     zones: () => [[13, "bad", "Abnormal range", "12 bpm or less in the first minute in the original study."], [Infinity, "good", "Typical or better"]],
     what: "How many beats per minute your heart rate falls in the first minute after a workout ends. A fit heart hands control back to the vagus nerve quickly, so it drops fast.",
@@ -409,6 +505,13 @@ export const GUIDE = {
   },
   ccost: {
     title: "Cardiac cost of walking", unit: "bpm", fmt: (v) => v.toFixed(0), xp: true,
+    calc() {
+      const h = [...(D.hist ?? [])].reverse().find((z) => z.summary?.day?.cardiac_cost), c = h?.summary?.day?.cardiac_cost;
+      if (!c) return "<p>Needs a day with steady walking (sustained walking cadence) and a resting heart rate.</p>";
+      const rest = c.walkingHr - (c.bpmPer100spm * c.cadence) / 100;
+      return formula("cost = (walking heart rate − resting heart rate) ÷ (steps per minute ÷ 100)")
+        + worked([`${h.date}: ${c.minutes} minutes of steady walking`, `(${c.walkingHr} − resting ${rest.toFixed(0)}) ÷ (${c.cadence} ÷ 100)`, `= ${(+c.bpmPer100spm).toFixed(1)} bpm per 100 steps a minute`]);
+    },
     live: () => ({ v: D.advData?.ccost?.latest?.bpmPer100spm ?? null }),
     what: "How much your heart rate rises for each 100 steps per minute of steady walking. It is a cadence-only version of the physiological cost index: a fitter heart gets more walking for less effort.",
     read: "No cut-off. A lower number means walking costs your heart less. A rise over weeks, with no change in routes or hills, can mean lower fitness, tiredness, heat, illness or a new medicine; a fall goes with improving fitness. Compare only with your own steady walks.",
@@ -418,6 +521,15 @@ export const GUIDE = {
   },
   load: {
     title: "Training load", unit: "TRIMP", fmt: (v) => v.toFixed(0),
+    calc() {
+      const L = D.advData?.load, w = L?.thisWeek, f = D.profile?.sex === "female", k = f ? [0.86, 1.67] : [0.64, 1.92];
+      if (!w) return "<p>Needs heart rate from the band.</p>";
+      const ex = 30 * 0.7 * k[0] * Math.exp(k[1] * 0.7);
+      return formula(`TRIMP = Σ minutes × HRR × ${k[0]} × e^(${k[1]} × HRR), over minutes at 50% of your heart-rate reserve or more (${f ? "women's" : "men's"} weighting)`)
+        + worked([`HRR = (heart rate − resting) ÷ (maximum − resting)`, `for example, 30 min at 70% HRR = 30 × 0.7 × ${k[0]} × e^(${k[1]} × 0.7) = ${ex.toFixed(0)}`, `this week (${w.days} day${w.days === 1 ? "" : "s"}): ${Math.round(w.trimp ?? 0)}${L.lastWeek ? `; last week ${Math.round(L.lastWeek.trimp ?? 0)}` : ""}`,
+          w.sessions ? `tagged sessions: effort × minutes, summed over ${w.sessions} = ${Math.round(w.sessionLoad)}` : "no tagged sessions this week (tag a workout's effort to add session load)"])
+        + zoneMinutes();
+    },
     live() { const L = D.advData?.load?.thisWeek; return { v: L ? L.trimp ?? 0 : null }; },
     what: "TRIMP (training impulse) adds up heart-rate effort over each workout: minutes spent at higher percentages of your heart-rate reserve count for more. Pulse also adds session RPE (how hard it felt × minutes) for sessions you tagged, shown separately.",
     read: "No cut-offs: a load that is right for one person is too much or too little for another. The useful questions are whether this week is far above your recent weeks (a big jump raises the chance of injury and illness) and whether you are recovering between hard days. Meanwhile the guidelines are at least 150 minutes of moderate activity a week.",
@@ -493,6 +605,95 @@ export const GUIDE = {
     read: "In ambulatory (24-hour cuff) studies, a smaller dip (non-dipper) or a rise (reverse dipper) goes with a higher risk of heart disease and stroke. Pulse's version rests on the band's calibrated estimate, not a 24-hour cuff, so the categories are for orientation. Apnea, alcohol, salt, poor sleep and some medicines reduce the dip.",
     calc() { const d = bandDip(7); return d && !d.need ? worked([`(awake ${d.daySys.toFixed(1)} − asleep ${d.nightSys.toFixed(1)}) ÷ awake ${d.daySys.toFixed(1)} × 100`, `= ${d.sys.toFixed(1)}% systolic (${d.dia.toFixed(1)}% diastolic)`, `from ${d.nDay} awake and ${d.nNight} asleep band readings`]) : "<p>Needs a night with the band on: at least 6 readings asleep and 12 awake.</p>"; },
     cite: "O'Brien, J Hypertens 2013 (ESH dipping categories).",
+  },
+  // ---------------------------------------------------------------- Pulse's own scores
+  recovery: {
+    title: "Recovery score", unit: "", scale: [0, 100], fmt: (v) => v.toFixed(0), soft: true,
+    live: () => ({ v: nightH()?.rec ?? null }),
+    zones: () => [[50, "bad", "Low"], [67, "watch", "Moderate"], [Infinity, "good", "Recovered"]],
+    keyNote: "<b>Pulse's own score.</b> The colours are the bands the app uses, not clinical cut-offs.",
+    what: "How rested your body looks this morning compared with your own recent nights. It blends four things your body does when it has recovered: a lower resting heart rate, higher overnight HRV, no unusual rise in temperature, and a good night's sleep.",
+    read: "Read it against yourself, not other people: 50 is not a fail and 90 is not a prize. A run of low scores, or one well below your usual, is worth a lighter day. Pulse leaves out any part that has no baseline yet (it needs 5 earlier nights) and spreads its weight over the rest.",
+    moves: "Lower: alcohol, a late meal, late hard exercise, short or broken sleep, illness, stress, heat. Higher: a regular sleep schedule, a cool room, rest days after hard training.",
+    caveat: "The weights are Pulse's, chosen to favour the most reliable signals; no wearable recovery score is clinically validated.",
+    cite: "Inputs follow Alavi, Nat Med 2022 (overnight heart rate), Shaffer & Ginsberg 2017 (HRV), Smarr, Sci Rep 2020 (temperature).",
+    calc() { const h = nightH(); return h?.recParts?.length ? scoreParts(h.recParts, h.rec, "recovery") : "<p>Needs 5 nights to learn your usual.</p>"; },
+  },
+  sleep: {
+    title: "Sleep score", unit: "", scale: [0, 100], fmt: (v) => v.toFixed(0), soft: true,
+    live: () => ({ v: nightH()?.sleepScore ?? null }),
+    zones: () => [[50, "bad", "Poor"], [67, "watch", "Fair"], [Infinity, "good", "Good"]],
+    keyNote: "<b>Pulse's own score.</b> The colours are the bands the app uses, not clinical cut-offs.",
+    what: "One number for last night's sleep: how long you slept against the recommendation for your age, how much of your time in bed was sleep, how long you lay awake during the night, how close your timing was to your usual, and how much was deep and REM sleep.",
+    read: "It rarely reaches 100, because every part has to be excellent. Duration and regularity carry the most weight because they are the most reliable things a wrist band measures and the strongest links to long-term health; deep and REM count least because band staging is approximate.",
+    moves: "Bedtime and wake time (the biggest lever), alcohol, caffeine after noon, a warm room, screens late, naps late in the day, stress and pain.",
+    cite: "Hirshkowitz, Sleep Health 2015 (NSF duration); Windred, Sleep 2024 (regularity).",
+    calc() { const h = nightH(); return h?.sleepParts?.length ? scoreParts(h.sleepParts, h.sleepScore, "sleep") : "<p>Needs a night with a sleep record.</p>"; },
+  },
+  metsyn: {
+    title: "Metabolic syndrome", unit: "of 5", scale: [0, 5], fmt: (v) => v.toFixed(0),
+    live() { const m = metNow(); return { v: m ? m.met : null, text: m ? `${m.met} of 5 criteria met, ${m.assessed} of 5 assessable.` : "" }; },
+    zones: () => [[3, "good", "Not met", "Fewer than 3 criteria."], [Infinity, "bad", "Metabolic syndrome", "3 or more of the 5."]],
+    what: "A cluster of five common findings that together raise the risk of heart disease and type 2 diabetes more than each alone: a large waist, high triglycerides, low HDL cholesterol, raised blood pressure and raised fasting glucose. Any three of the five make the diagnosis under the international harmonised definition.",
+    read: "It's a yes/no definition: 3 or more criteria is metabolic syndrome. Each criterion counts as met if you're treated for it (blood-pressure medicine, diabetes). The 2018 and 2026 cholesterol guidelines list it as a risk-enhancing factor, a reason to take a borderline heart-risk number more seriously.",
+    moves: "Losing fat around the middle improves almost every criterion at once; so do regular aerobic activity, cutting alcohol and refined carbohydrates, and treating blood pressure.",
+    act: "If you meet 3 or more, raise it at your next check-up, especially with a borderline or intermediate heart-risk estimate.",
+    cite: "Alberti, Circulation 2009 (harmonised definition; AHA/NHLBI waist cut-points); Grundy, Circulation 2019 (risk enhancer).",
+    calc() {
+      const m = metNow();
+      if (!m) return "<p>Needs lab results or a waist measurement.</p>";
+      return kvRows(m.criteria.map((c) => [`${c.name} · ${c.rule}`, c.met == null ? "not on file" : c.met ? "met" : "not met", c.value == null ? (c.key === "waist" ? "add your waist in Profile" : "") : `yours: ${typeof c.value === "number" ? +c.value.toFixed(1) : c.value}${typeof c.value !== "number" ? "" : c.key === "waist" ? " cm" : " mg/dL"}`]))
+        + worked([`${m.met} met of ${m.assessed} assessable → ${m.present === true ? "metabolic syndrome" : m.present === false ? "not met" : "can't tell yet"}`]) + `<p class="calc-n">Labs use your newest result for each test; blood pressure is your cuff's 7-day average.</p>`;
+    },
+  },
+  // ---------------------------------------------------------------- home cuff detail (30 days of sittings)
+  pp: {
+    title: "Pulse pressure", unit: "mmHg", scale: [20, 90], fmt: (v) => v.toFixed(0), soft: true,
+    live: () => ({ v: hb()?.pp ?? null }),
+    zones: () => [[60, "good", "Typical"], [Infinity, "watch", "Wide", "60 or more in people over 60 is a sign of stiffer large arteries."]],
+    what: "The gap between your top (systolic) and bottom (diastolic) numbers. Each heartbeat pushes a pulse of blood into the large arteries; when they are elastic they absorb it and the gap stays modest. As they stiffen with age, the top number rises, the bottom number stays or falls, and the gap widens.",
+    read: "Typical adult values are around 40–50 mmHg. The ESC/ESH guideline treats 60 mmHg or more in older people as a marker of stiff large arteries and higher cardiovascular risk. In young adults a wide gap can be harmless (a strong, elastic heart and aorta), which is why the band is shaded as orientation only.",
+    moves: "Age, long-standing high blood pressure, diabetes, smoking and kidney disease widen it. Aerobic fitness and lowering a high systolic pressure narrow it.",
+    cite: "Williams, Eur Heart J 2018 (ESC/ESH guideline: pulse pressure ≥60 mmHg in older people).",
+    calc() { const r = hb(); return r ? worked([`average systolic ${hbMean("sys")} − average diastolic ${hbMean("dia")}`, `= ${r.pp} mmHg over ${r.sessions} sitting${r.sessions > 1 ? "s" : ""} in the last 30 days`]) + `<p class="calc-n">Each sitting's readings are averaged first, as the home protocol asks.</p>` : "<p>Needs a cuff reading in the last 30 days.</p>"; },
+  },
+  map: {
+    title: "Mean arterial pressure", unit: "mmHg", fmt: (v) => v.toFixed(0),
+    live: () => ({ v: hb()?.map ?? null }),
+    what: "The average pressure in your arteries across a whole heartbeat. The heart spends about two-thirds of each beat relaxing, so the average sits closer to the bottom number: diastolic plus a third of the pulse pressure. It's roughly the pressure that pushes blood through your organs.",
+    read: "Most healthy adults sit between about 70 and 100 mmHg at rest. Clinicians use it mainly in hospital (below about 65 the organs may not get enough blood). At home it adds little beyond your two numbers, which already set your category; it's here because some devices and papers report it.",
+    moves: "Everything that moves blood pressure: salt, alcohol, weight, activity, sleep, stress and medicines.",
+    cite: "Standard physiology (diastolic + ⅓ pulse pressure at resting heart rates).",
+    calc() { const r = hb(); return r ? formula("MAP = diastolic + (systolic − diastolic) ÷ 3") + worked([`each sitting: diastolic + (systolic − diastolic) ÷ 3, then averaged over ${r.sessions} sitting${r.sessions > 1 ? "s" : ""}`, `≈ ${hbMean("dia")} + (${hbMean("sys")} − ${hbMean("dia")}) ÷ 3`, `= ${r.map} mmHg`]) : "<p>Needs a cuff reading in the last 30 days.</p>"; },
+  },
+  bpvar: {
+    title: "Day-to-day blood pressure swing", unit: "mmHg", fmt: (v) => v.toFixed(1),
+    live: () => ({ v: hb()?.variability?.sd ?? null }),
+    what: "How much your daily average systolic pressure varies from one day to the next. Pulse shows the standard deviation of your daily averages, and the average real variability (ARV): the average size of the change from one day to the next, which ignores slow drifts.",
+    read: "There's no agreed cut-off for home readings. In the Ohasama study, people whose home systolic pressure swung more from day to day had higher cardiovascular risk, whatever their average. Read it against your own past months: a swing that grows is worth noticing, especially with a new medicine or irregular dosing.",
+    moves: "Irregular medicine timing, alcohol, salt, poor sleep, stress, pain, measuring at different times or positions, and stiffer arteries.",
+    caveat: "Needs readings on 7 different days. Measuring at the same times each day keeps technique from inflating it.",
+    cite: "Kikuya, Hypertension 2008 (Ohasama, day-by-day home BP variability); Mena, J Hypertens 2005 (ARV).",
+    calc() { const r = hb(), v = r?.variability; if (!v) return `<p>${esc(r?.need?.variability ?? "Needs readings on 7 different days.")}</p>`;
+      const d = r.dayRows.map((x) => x.sys);
+      return worked([`daily systolic averages over ${v.days} days: ${d.map((x) => x.toFixed(0)).join(", ")}`, `standard deviation = ±${v.sd} mmHg (coefficient of variation ${v.cv}%)`, `average change from one day to the next (ARV) = ${v.arv} mmHg`, `range = ${v.range} mmHg; diastolic SD ±${v.sdDia}`]); },
+  },
+  morneve: {
+    title: "Morning vs evening", unit: "mmHg", fmt: (v) => `${v > 0 ? "+" : ""}${v.toFixed(0)}`,
+    live: () => ({ v: hb()?.mornEve?.diff ?? null }),
+    what: "Your average morning systolic pressure minus your average evening one, from cuff sittings before and after noon.",
+    read: "Most people read a little higher in the morning: blood pressure rises in the hours after waking. A large morning excess has been linked with stroke risk in some cohorts, and morning readings taken before medicines show whether a once-daily tablet lasts the full 24 hours. There's no single agreed cut-off, so read it with your clinician if your mornings run well above your evenings.",
+    moves: "Medicine timing, sleep apnea, alcohol the night before, caffeine and when after waking you measure (the protocol is within an hour of waking, before medicines, coffee and exercise).",
+    cite: "Muntner, Hypertension 2019 (AHA home-monitoring protocol); Kario, Circulation 2003 (morning surge).",
+    calc() { const m = hb()?.mornEve; return m ? worked([`morning ${m.am.toFixed(1)}/${m.amDia.toFixed(1)} over ${m.nAm} sittings`, `evening ${m.pm.toFixed(1)}/${m.pmDia.toFixed(1)} over ${m.nPm} sittings`, `systolic difference = ${m.diff > 0 ? "+" : ""}${m.diff}`]) : `<p>${esc(hb()?.need?.mornEve ?? "Needs 3 morning and 3 evening sittings.")}</p>`; },
+  },
+  firstsecond: {
+    title: "First vs second reading", unit: "mmHg", fmt: (v) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`,
+    live: () => ({ v: hb()?.firstReading?.diff ?? null }),
+    what: "In sittings where you took two readings a minute apart, the first systolic minus the second.",
+    read: "The first reading is often a few mmHg higher (the cuff itself, settling down). That's why the AHA asks for two readings and why Pulse averages each sitting. If your first reading regularly runs much higher, rest a full five minutes before starting, or take a third reading.",
+    cite: "Muntner, Hypertension 2019 (AHA statement on BP measurement).",
+    calc() { const f = hb()?.firstReading; return f ? worked([`average of (first − second) over ${f.n} paired sittings = ${f.diff > 0 ? "+" : ""}${f.diff} mmHg`, `median ${f.median > 0 ? "+" : ""}${f.median}`]) : `<p>${esc(hb()?.need?.firstReading ?? "Needs 3 sittings with two readings.")}</p>`; },
   },
   // ---------------------------------------------------------------- biological age, heart risk, body
   phenoage: {
@@ -593,6 +794,43 @@ function phenoHistory() {
   return { a: a.date, b: b.date, c: phenoChange(a.r, b.r) };
 }
 function preventNow() { try { return preventResult(D.profile ?? {}); } catch { return null; } }
+function metNow() {
+  const L = latestLabs(), p = D.profile ?? {}, bp = D.bp?.length ? bpSummary(D.bp) : null;
+  const m = metabolicSyndrome({ tg: L.tg?.value ?? null, hdl: L.hdl?.value ?? null, glucose: L.glucose?.value ?? null, sys: bp?.sys ?? null, dia: bp?.dia ?? null, waist: p.waist ?? null }, { sex: p.sex ?? null, bpMeds: !!p.bpMeds, diabetes: !!p.diabetes });
+  return m.assessed ? m : null;
+}
+/** How each part of a Pulse score turned into points (the rule for each part, then the weighted total). */
+const SCORE_RULE = {
+  duration: () => { const n = sleepNeed(D.profile?.age ?? 40); return `full marks from ${hmStr(n.min + 30)} to ${hmStr(n.max + 60)} for your age (${n.min / 60}–${n.max / 60} h recommended), tapering a little beyond; none at 4 h`; },
+  efficiency: () => "none at 70%, full at 92%",
+  continuity: () => "full at 10 minutes awake or less, none at 90",
+  regularity: () => "full within 15 min of your 14-night average midpoint, none at 2 h off",
+  restoration: () => "none at 20% of sleep, full at 45%",
+  rhr: (p) => { const zz = 2.5 - 4 * p.frac; return p.frac > 0 && p.frac < 1 ? `${Math.abs(zz).toFixed(1)} usual swings ${zz < 0 ? "below" : "above"} your usual: (2.5 − ${paren(zz)}) ÷ 4 of the points` : p.frac >= 1 ? "1.5 or more usual swings below your usual: full" : "2.5 or more usual swings above your usual: none"; },
+  hrv: (p) => { const zz = 4 * p.frac - 2.5; return p.frac > 0 && p.frac < 1 ? `${Math.abs(zz).toFixed(1)} usual swings ${zz < 0 ? "below" : "above"} your usual (on a log scale): (${paren(zz)} + 2.5) ÷ 4 of the points` : p.frac >= 1 ? "1.5 or more usual swings above your usual: full" : "2.5 or more usual swings below your usual: none"; },
+  temp: () => "full up to +0.2 °C over your usual, none at +0.8 °C (cooler never counts against you)",
+  sleep: () => "your sleep score for the night",
+};
+const SCORE_VAL = { duration: (v) => hmStr(v), efficiency: (v) => `${Math.round(v)}%`, continuity: (v) => `${Math.round(v)} min`, regularity: (v) => `${Math.round(v)} min off`, restoration: (v) => `${Math.round(v)}%`, rhr: (v) => `${Math.round(v)} bpm`, hrv: (v) => `${Math.round(v)} ms`, temp: (v) => `${tDelta(v) >= 0 ? "+" : "−"}${Math.abs(tDelta(v)).toFixed(1)}${tUnit()} vs usual`, sleep: (v) => `${Math.round(v)}` };
+const paren = (v) => (v < 0 ? `(−${Math.abs(v).toFixed(1)})` : v.toFixed(1));
+const hmStr = (min) => `${Math.floor(min / 60)} h ${String(Math.round(min % 60)).padStart(2, "0")} min`;
+function scoreParts(parts, score) {
+  const tot = parts.reduce((a, x) => a + x.max, 0), got = parts.reduce((a, x) => a + x.frac * x.max, 0);
+  return `<div class="pull">${parts.map((x) => `<div><span>${esc(x.label)}<em>${SCORE_VAL[x.key]?.(x.value) ?? ""} · ${SCORE_RULE[x.key]?.(x) ?? ""}${x.note && /usual/i.test(x.note) ? ` · ${esc(x.note)}` : ""}</em></span>${S(110, 12, `<rect x="0" y="3" width="110" height="6" rx="3" fill="${css("--track")}"/><rect x="0" y="3" width="${(110 * x.frac).toFixed(1)}" height="6" rx="3" fill="${css(x.frac >= 0.67 ? "--good" : x.frac >= 0.34 ? "--watch" : "--bad")}"/>`)}<b>${(x.frac * x.max).toFixed(0)}<small>/${x.max}</small></b></div>`).join("")}</div>`
+    + worked([`${parts.map((x) => (x.frac * x.max).toFixed(1)).join(" + ")} = ${got.toFixed(1)} of ${tot}`, `${got.toFixed(1)} ÷ ${tot} × 100 = ${score ?? Math.round((got / tot) * 100)}`])
+    + (tot < 100 ? `<p class="calc-n">Parts without enough history yet are left out, so the total is out of ${tot} and rescaled to 100.</p>` : "");
+}
+/** This week's minutes in Karvonen heart-rate zones 1–5 (50–60 … 90%+ of reserve), from the daily summaries. */
+function zoneMinutes() {
+  const now = new Date(), dow = (now.getDay() + 6) % 7, monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow).toISOString().slice(0, 10);
+  const z = [0, 0, 0, 0, 0];
+  for (const h of D.hist ?? []) if (h.date >= monday) (h.summary?.day?.zone_minutes ?? []).forEach((m, i) => { z[i] += m ?? 0; });
+  if (!z.some((m) => m > 0.5)) return "";
+  return `<h5 class="calc-h">Minutes in each heart-rate zone this week</h5>${kvRows(["50–60%", "60–70%", "70–80%", "80–90%", "90%+"].map((l, i) => [`Zone ${i + 1} · ${l} of reserve`, `${Math.round(z[i])} min`, ""]))}<p class="calc-n">Higher zones count for more in TRIMP: a minute at 85% weighs about ${(0.85 * Math.exp(1.92 * 0.85) / (0.55 * Math.exp(1.92 * 0.55))).toFixed(1)}× a minute at 55%.</p>`;
+}
+/** Home cuff detail over the last 30 days (null without readings), and a sitting-weighted average of one channel. */
+function hb() { const r = D.bp?.length ? homeBP(D.bp) : null; return r?.sessions ? r : null; }
+function hbMean(k) { const ss = sessions(D.bp ?? []).filter((x) => toMs(x.t) >= Date.now() - 30 * 864e5); return ss.length ? (ss.reduce((a, x) => a + x[k], 0) / ss.length).toFixed(1) : "—"; }
 
 /** A guide for one lab-derived index (labs.js), built from your current results: the paper's zones, the formula
  *  worked with your numbers, the index at each draw and what moved it. */
@@ -664,7 +902,7 @@ export function explainSheet(key) {
     ${L.text ? `<p class="xz-live">${L.text}</p>` : ""}
     ${zones.length ? `<h4 class="xz-h">Where it sits</h4>${hasNum ? ladder(gg, zones, v) : ""}
       <div class="xz-zones">${zones.map((zz, i) => `<div class="xz-z ${i === idx ? "on" : ""}"><i style="background:var(--${zz[1]})"></i><span><b>${zz[2]}</b>${hasNum ? `<em>${rangeText(gg, zones, i)}${g.unit && g.unit !== "RA" ? ` ${g.unit}` : ""}</em>` : ""}${zz[3] ? `<small>${zz[3]}</small>` : ""}</span></div>`).join("")}</div>
-      <p class="xz-key">${g.soft ? `<b>For orientation only.</b> No validated cut-off exists for this exact measure, so these ranges are rough and ${g.personal ? "your own usual (below) is the fairer judge." : "the trend in your own readings matters more."}` : `<span class="key" style="--k:${css("--good")}">${TIER.good}</span> <span class="key" style="--k:${css("--watch")}">${TIER.watch}</span> <span class="key" style="--k:${css("--bad")}">${TIER.bad}</span> Published cut-offs; read together with how you feel, never alone.`}</p>` : `<p class="xz-key">${g.keyNote ?? `<b>No good-or-bad range.</b> ${g.personal ? "No validated cut-off exists, so Pulse judges it against your own usual." : "This one is context, not a score."}`}</p>`}
+      <p class="xz-key">${g.keyNote && g.soft ? g.keyNote : g.soft ? `<b>For orientation only.</b> No validated cut-off exists for this exact measure, so these ranges are rough and ${g.personal ? "your own usual (below) is the fairer judge." : "the trend in your own readings matters more."}` : `<span class="key" style="--k:${css("--good")}">${TIER.good}</span> <span class="key" style="--k:${css("--watch")}">${TIER.watch}</span> <span class="key" style="--k:${css("--bad")}">${TIER.bad}</span> Published cut-offs; read together with how you feel, never alone.`}</p>` : `<p class="xz-key">${g.keyNote ?? `<b>No good-or-bad range.</b> ${g.personal ? "No validated cut-off exists, so Pulse judges it against your own usual." : "This one is context, not a score."}`}</p>`}
     ${g.calc ? `<h4 class="xz-h">How it's calculated</h4><div class="calc">${g.calc()}</div>` : ""}
     ${g.personal ? `<h4 class="xz-h">Against your own usual</h4>${pt ? `<div class="xz-own"><span class="badge ${pt.tier}">${esc(pt.label)}</span><span>Your usual is <b>${fmt(pt.u.lo)}–${fmt(pt.u.hi)}${g.unit ? ` ${g.unit}` : ""}</b> (median ${fmt(pt.u.center)}, last ${pt.u.n} readings). That range is the median plus or minus one typical swing; outside two swings is unusual for you.</span></div>` : `<p>${num(v) ? `Pulse needs at least 5 earlier readings (${pv.filter(num).length} so far) to know your usual.` : "Appears once you have a reading and 5 earlier ones."}</p>`}` : ""}
     ${sec("What it is", g.what)}${sec("How to read it", g.read)}${sec("What moves it", g.moves)}${sec("When to act", g.act)}

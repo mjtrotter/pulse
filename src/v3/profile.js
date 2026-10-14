@@ -1,10 +1,10 @@
 // Profile: who you are (feeds norms, goals and heart-rate zones), settings, heart risk from labs + home BP,
 // labs and what they imply, the band, your data, and first-run setup. Also the bottom sheets (forms).
-import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261014180338";
-import { mean, sd } from "./stats.js?v=20261014180338";
-import { css, D, esc, header, relMin, st } from "./kit.js?v=20261014180338";
-import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261014180338";
-import { bodyRows } from "./riskui.js?v=20261014180338";
+import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261014181550";
+import { mean, sd } from "./stats.js?v=20261014181550";
+import { css, D, esc, header, relMin, st } from "./kit.js?v=20261014181550";
+import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261014181550";
+import { bodyRows } from "./riskui.js?v=20261014181550";
 
 export const bmiOf = (p) => (p.height && p.weight ? p.weight / (p.height / 100) ** 2 : null);
 

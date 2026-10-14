@@ -11,8 +11,8 @@
 // Anchors far in time from the moment being estimated count for less (half-life 60 days), because the band-to-cuff
 // relationship drifts. Accuracy is measured the honest way: each anchor is predicted only from the anchors before it.
 // Cuff readings stay the basis of every category, average and risk score; the calibrated line fills in between them.
-import { toMs } from "../core/time.js?v=20261014180338";
-import { sessions } from "./homebp.js?v=20261014180338";
+import { toMs } from "../core/time.js?v=20261014181550";
+import { sessions } from "./homebp.js?v=20261014181550";
 
 /** Minutes either side of a cuff sitting that the band's readings are taken from. */
 export const WIN = 30;
@@ -49,7 +49,7 @@ export function bandAt(B, ms, win = WIN) {
 /** Cuff sittings (readings within 10 minutes averaged, as the home protocol does), each with the band's estimate
  *  from the same half hour, oldest first. `band` is null for a sitting the band can't anchor. */
 export function anchors(cuff, B) {
-  return sessions(cuff).map((s) => { const ms = toMs(s.t); return { t: s.t, ms, sys: s.sys, dia: s.dia, n: s.n, band: bandAt(B, ms) }; });
+  return sessions(cuff).map((s) => { const ms = toMs(s.t); return { t: s.t, ms, sys: s.sys, dia: s.dia, pulse: s.pulse, n: s.n, band: bandAt(B, ms) }; });
 }
 
 const weightAt = (aMs, ms, halfLife) => 0.5 ** (Math.abs(ms - aMs) / (halfLife * 864e5));
@@ -109,7 +109,8 @@ const meanOf = (xs) => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : 
  * Time-ordered check: each anchor is predicted three ways from what was known just before it — the band as-is, the
  * band calibrated on earlier anchors only, and the previous cuff sitting — and the misses are compared on the same
  * anchors (those with a band pair and at least one earlier calibrated anchor). Returns the per-anchor rows (newest
- * last) and mean absolute misses {raw, cal, last} for systolic and diastolic, plus the band's raw bias over every pair.
+ * last), mean absolute misses {raw, cal, last} for systolic and diastolic, the band's raw bias over every pair, and
+ * systolic 95% limits of agreement {raw, cal} (Bland & Altman, Lancet 1986).
  */
 export function validate(A) {
   const rows = [];
@@ -121,12 +122,15 @@ export function validate(A) {
   });
   const scored = rows.filter((r) => r.raw && r.cal && r.last);
   const miss = (k, src) => meanAbs(scored.map((r) => r[src][k] - r.cuff[k]));
-  const paired = rows.filter((r) => r.raw);
+  const paired = rows.filter((r) => r.raw), predicted = rows.filter((r) => r.cal);
+  // Bland–Altman 95% limits of agreement (bias ± 1.96 SD of the differences); needs 3 differences.
+  const loa = (d) => { if (d.length < 3) return null; const m = meanOf(d), sd = Math.sqrt(d.reduce((a, x) => a + (x - m) ** 2, 0) / (d.length - 1)); return { bias: m, lo: m - 1.96 * sd, hi: m + 1.96 * sd, n: d.length }; };
   return {
     rows, n: scored.length, pairs: paired.length,
     sys: { raw: miss("sys", "raw"), cal: miss("sys", "cal"), last: miss("sys", "last") },
     dia: { raw: miss("dia", "raw"), cal: miss("dia", "cal"), last: miss("dia", "last") },
     bias: { sys: meanOf(paired.map((r) => r.raw.sys - r.cuff.sys)), dia: meanOf(paired.map((r) => r.raw.dia - r.cuff.dia)) },
+    agree: { raw: loa(paired.map((r) => r.raw.sys - r.cuff.sys)), cal: loa(predicted.map((r) => r.cal.sys - r.cuff.sys)) },
   };
 }
 

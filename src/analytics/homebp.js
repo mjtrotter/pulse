@@ -2,8 +2,8 @@
 // the AHA/AMA home-monitoring protocol, morning vs evening, pulse pressure, mean arterial pressure and day-to-day
 // variability. Cuff readings only: the band's cuffless estimate never enters these numbers.
 // Rows: [{t: "YYYY-MM-DD hh:mm:ss", sys, dia, pulse}].
-import { toMs } from "../core/time.js?v=20261014180338";
-import { mean, median, sd } from "./baseline.js?v=20261014180338";
+import { toMs } from "../core/time.js?v=20261014181550";
+import { mean, median, sd } from "./baseline.js?v=20261014181550";
 
 const r1 = (x, d = 1) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
 
@@ -35,7 +35,9 @@ export function arv(values) {
 /** Protocol completeness for the last 7 days (AHA/AMA 2020: two readings a minute apart, morning and evening,
  *  ideally 7 days and at least 3). */
 export function protocolWeek(rows, now = Date.now()) {
-  const ss = sessions(rows).filter((s) => toMs(s.t) >= now - 7 * 864e5 && toMs(s.t) <= now);
+  // The last 7 calendar days, today included (a rolling 168 hours would touch 8 dates).
+  const d0 = new Date(now), start = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() - 6).getTime();
+  const ss = sessions(rows).filter((s) => toMs(s.t) >= start && toMs(s.t) <= now);
   const dates = [...new Set(ss.map((s) => s.date))], am = new Set(ss.filter((s) => s.am).map((s) => s.date)), pm = new Set(ss.filter((s) => !s.am).map((s) => s.date));
   const paired = ss.filter((s) => s.n >= 2).length;
   const level = dates.length >= 7 && am.size >= 6 && pm.size >= 6 ? "complete" : dates.length >= 3 && am.size >= 1 && pm.size >= 1 ? "minimum" : "short";

@@ -1,14 +1,14 @@
 // Labs: on-phone PDF import (with a review step) or manual entry, the panel over time, what it implies (each
 // paper's own formula), heart risk (AHA PREVENT from labs + home BP), and the lab context other screens use.
-import { derived } from "../analytics/labs.js?v=20261014180338";
-import { CANONICAL } from "../labs/pdfimport.js?v=20261014180338";
-import { phenoAge, PHENOAGE_INPUTS } from "../analytics/bioage.js?v=20261014180338";
-import { prevent } from "../analytics/prevent.js?v=20261014180338";
-import { preventCategory } from "../analytics/riskctx.js?v=20261014180338";
-import { riskContextCard, tierChip } from "./riskui.js?v=20261014180338";
-import { bpSummary } from "./bp.js?v=20261014180338";
-import { mean } from "./stats.js?v=20261014180338";
-import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20261014180338";
+import { derived } from "../analytics/labs.js?v=20261014181550";
+import { CANONICAL } from "../labs/pdfimport.js?v=20261014181550";
+import { phenoAge, PHENOAGE_INPUTS } from "../analytics/bioage.js?v=20261014181550";
+import { prevent } from "../analytics/prevent.js?v=20261014181550";
+import { preventCategory } from "../analytics/riskctx.js?v=20261014181550";
+import { riskContextCard, tierChip } from "./riskui.js?v=20261014181550";
+import { bpSummary } from "./bp.js?v=20261014181550";
+import { mean } from "./stats.js?v=20261014181550";
+import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20261014181550";
 
 /** Analytes Pulse tracks: the parser's canonical catalog (US conventional units, grouped). ref = a typical
  *  adult range used only when the report's own range isn't available; the lab's range and flag always win. */

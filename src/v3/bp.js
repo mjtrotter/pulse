@@ -1,6 +1,6 @@
 // Home blood-pressure helpers shared by Measure, Labs (heart risk) and Trends.
-import { toMs } from "../core/time.js?v=20261014180338";
-import { mean } from "./stats.js?v=20261014180338";
+import { toMs } from "../core/time.js?v=20261014181550";
+import { mean } from "./stats.js?v=20261014181550";
 
 /** ACC/AHA 2017 home thresholds (Table 11): stage 1 from 130/80, stage 2 from 135/85. */
 export function bpCategory(sys, dia, single = false) {

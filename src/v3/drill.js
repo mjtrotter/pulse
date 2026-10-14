@@ -1,15 +1,15 @@
 // The metric catalog and the full-screen drill-down every tile opens: headline value, bands (population,
 // your usual, what your sleep predicts), a plain-language read, then four views: the night/day itself,
 // Over time, Your range and What affects it.
-import { tempC } from "../core/units.js?v=20261014180338";
-import { clamp, decade, drivers, expected, HRV_NORM, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20261014180338";
-import { labContext } from "./labsui.js?v=20261014180338";
-import { nightChannels } from "./nightmon.js?v=20261014180338";
-import { dayMontage, workoutPrompts, workoutsList } from "./daymon.js?v=20261014180338";
-import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20261014180338";
+import { tempC } from "../core/units.js?v=20261014181550";
+import { clamp, decade, drivers, expected, HRV_NORM, MIN_MODEL, MIN_TAGGED, MIN_USUAL, mean, median, sd, TAGS, usualRange } from "./stats.js?v=20261014181550";
+import { labContext } from "./labsui.js?v=20261014181550";
+import { nightChannels } from "./nightmon.js?v=20261014181550";
+import { dayMontage, workoutPrompts, workoutsList } from "./daymon.js?v=20261014181550";
+import { ampm, cap1, clock, css, D, dname, dur, esc, eveOf, glow, glowDef, hm, hr12, isLatest, MON, nightName, ord, poly, q, S, sc, scrubbable, short, sign, smooth, smoothRuns, st, stageColor, stageName, tDelta, tUnit, uid, DAYS } from "./kit.js?v=20261014181550";
 
 // Metrics with a "How to read this" guide in explain.js.
-const EXPLAINED = new Set(["rhr", "hrv", "breath", "spo2", "temp", "sri", "dip", "cvhr", "ccost"]);
+const EXPLAINED = new Set(["rhr", "hrv", "breath", "spo2", "temp", "sri", "dip", "cvhr", "ccost", "recovery", "sleep"]);
 const ALL = ["sleep", "alcohol", "caffeine", "late_food", "stress", "workout"];
 const decLbl = (age) => (decade(age) >= 70 ? "70+" : `${decade(age)}s`);
 

@@ -1,18 +1,19 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20261014180338";
-import { dayOf, toMs } from "../core/time.js?v=20261014180338";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20261014180338";
-import { detectWorkouts } from "../analytics/workouts.js?v=20261014180338";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20261014180338";
-import { stepGoal } from "../analytics/scores.js?v=20261014180338";
-import { ASK_RATE, cleanOther, dateDraw, median, otherKey, triggers } from "./stats.js?v=20261014180338";
-import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20261014180338";
-import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20261014180338";
-import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20261014180338";
-import { bpBand } from "../analytics/bpcal.js?v=20261014180338";
-import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20261014180338";
+import * as db from "../core/db.js?v=20261014181550";
+import { dayOf, toMs } from "../core/time.js?v=20261014181550";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20261014181550";
+import { detectWorkouts } from "../analytics/workouts.js?v=20261014181550";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20261014181550";
+import { stepGoal } from "../analytics/scores.js?v=20261014181550";
+import { ASK_RATE, cleanOther, dateDraw, median, otherKey, triggers } from "./stats.js?v=20261014181550";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20261014181550";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20261014181550";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20261014181550";
+import { bpBand } from "../analytics/bpcal.js?v=20261014181550";
+import { fit as ladderFit } from "../analytics/bpmodel.js?v=20261014181550";
+import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20261014181550";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
@@ -101,7 +102,7 @@ export async function buildModel(store, profile) {
     sri: sri(sums), chrono: chronotype(sums), hrRhythm: hrRhythm(sums), tempRhythm: tempRhythm(sums),
     vo2: vo2max(profile, sums), uth: hrmax && rhrUsual ? vo2maxUth({ hrmax, rhr: rhrUsual }) : null,
     hrr: hrrTrend(sums), ccost: cardiacCostSeries(sums), load: weeklyLoad(sums, tagsForLoad),
-    energy: T?.energy ?? null, bmr: mifflin(profile), bp: bpBand(bp, bandBp),
+    energy: T?.energy ?? null, bmr: mifflin(profile), bp: { ...bpBand(bp, bandBp), context: await bpContext(store, bp, bandBp, ecg) },
   };
   return {
     adv, cycle,
@@ -148,6 +149,26 @@ function entry(s, date, today) {
 export function mifflin(p) {
   if (!p?.weight || !p?.height || !p?.age || !p?.sex) return null;
   return 10 * p.weight + 6.25 * p.height - 5 * p.age + (p.sex === "male" ? 5 : -161);
+}
+
+/** With 14+ cuff readings, the bpmodel.js ladder (leave-one-out) asks whether heart rate, skin temperature, recent
+ *  steps and time of day add anything beyond the band's own estimate. Diagnostic only: the line on screen stays the
+ *  calibrated band (bpcal.js). Returns {n, need, models: [{name, maeSys, maeDia, …}], best, usable, note}. */
+async function bpContext(store, cuff, bandBp, ecg) {
+  const NEED = 14;
+  if (cuff.length < NEED) return { n: cuff.length, need: NEED - cuff.length, models: [] };
+  const iso = (ms) => { const d = new Date(ms), p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
+  const hr = [], temp = [], acts = new Map(), use = cuff.slice(-60);
+  for (const r of use) {
+    const t = toMs(r.t);
+    hr.push(...(await db.range(store, "hr", iso(t - 12 * 60e3), iso(t + 60e3))));
+    temp.push(...(await db.range(store, "temp", iso(t - 35 * 60e3), iso(t + 35 * 60e3))));
+    const date = r.t.slice(0, 10);
+    if (!acts.has(date)) acts.set(date, minuteSteps(await db.range(store, "activity", `${date} 00:00:00`, `${date} 23:59:59`)));
+  }
+  const ecgRows = ecg.map((e) => ({ t: e.t, hr: e.result?.hrv?.hr ?? null, qtc: null }));
+  const m = ladderFit(use, { bandBp, hr, temp, ecg: ecgRows, stepsByMinute: (date, minute) => acts.get(date)?.get(minute) ?? 0 }, { minN: NEED });
+  return { ...m, models: (m.models ?? []).map(({ predict, ...z }) => z) };
 }
 
 /** Your usual steps for each clock hour (median of up to 28 prior days with step data), or null. */

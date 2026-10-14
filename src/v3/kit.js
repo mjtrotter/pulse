@@ -1,8 +1,8 @@
 // Shared UI state, formatting, SVG helpers and the components every tab uses (header, gauge, minis,
 // montage, tiles, scrubbable charts). Screens are HTML strings; every piece of user-entered text goes
 // through esc().
-import { isUS, tempUnit } from "../core/units.js?v=20261014180338";
-import { clamp, median } from "./stats.js?v=20261014180338";
+import { isUS, tempUnit } from "../core/units.js?v=20261014181550";
+import { clamp, median } from "./stats.js?v=20261014181550";
 
 /** UI state that survives re-renders. */
 export const st = {

@@ -1,15 +1,15 @@
 // Context the headline numbers can't carry on their own: the guideline's risk enhancers and the kidney grid next
 // to PREVENT, home-BP detail next to the cuff chart, before/after around a change the person logged, tier chips,
 // and which inputs moved a lab index. The math lives in analytics/ (riskctx, homebp, change, body, tiers).
-import { egfrAt, kdigo, KDIGO_RISK, lpaStatus, riskEnhancers, uacrAt } from "../analytics/riskctx.js?v=20261014180338";
-import { homeBP, ppNote, protocolWeek } from "../analytics/homebp.js?v=20261014180338";
-import { attributeChange, beforeAfter, POWER_FORMS, verdict } from "../analytics/change.js?v=20261014180338";
-import { bodyIndices } from "../analytics/body.js?v=20261014180338";
-import { tierOf } from "../analytics/tiers.js?v=20261014180338";
-import { dayOf, toMs } from "../core/time.js?v=20261014180338";
-import { isUS } from "../core/units.js?v=20261014180338";
-import { bpSummary } from "./bp.js?v=20261014180338";
-import { css, D, esc, hm, MON, S, sign, st } from "./kit.js?v=20261014180338";
+import { egfrAt, kdigo, KDIGO_RISK, lpaStatus, riskEnhancers, uacrAt } from "../analytics/riskctx.js?v=20261014181550";
+import { homeBP, ppNote, protocolWeek } from "../analytics/homebp.js?v=20261014181550";
+import { attributeChange, beforeAfter, POWER_FORMS, verdict } from "../analytics/change.js?v=20261014181550";
+import { bodyIndices } from "../analytics/body.js?v=20261014181550";
+import { tierOf } from "../analytics/tiers.js?v=20261014181550";
+import { dayOf, toMs } from "../core/time.js?v=20261014181550";
+import { isUS } from "../core/units.js?v=20261014181550";
+import { bpSummary } from "./bp.js?v=20261014181550";
+import { css, D, esc, hm, MON, S, sign, st } from "./kit.js?v=20261014181550";
 
 const shortDate = (date) => `${MON[+date.slice(5, 7) - 1]} ${+date.slice(8, 10)}`;
 const longDate = (date) => `${shortDate(date)}, ${date.slice(0, 4)}`;
@@ -56,7 +56,7 @@ export function riskContextCard(p) {
   // Without any lab panel, only the questions are worth listing; the lab-based rows would all read "not measured".
   const noLabs = !(D.labs ?? []).length, items = [...R.items].filter((z) => !noLabs || ["famhx", "inflam", "women", "ancestry"].includes(z.key)).sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
   const shown = items.filter((z) => z.status !== "absent"), absent = items.filter((z) => z.status === "absent"), open = st.open.has("enh-absent");
-  const row = (z) => `<div class="enh ${z.status}"><i></i><b>${esc(z.name)}</b>${z.status === "unasked" ? `<button class="link" data-sheet="riskq">Answer ›</button>` : `<em>${STATUS[z.status]}</em>`}${z.key === "lpa" && z.status === "missing" ? "" : `<p>${esc(z.detail)}</p>`}</div>`;
+  const row = (z) => `<div class="enh ${z.status}"><i></i><b>${esc(z.name)}${z.key === "mets" && z.status !== "missing" ? ' <button class="xi" data-explain="metsyn" aria-label="How metabolic syndrome is worked out">i</button>' : ""}</b>${z.status === "unasked" ? `<button class="link" data-sheet="riskq">Answer ›</button>` : `<em>${STATUS[z.status]}</em>`}${z.key === "lpa" && z.status === "missing" ? "" : `<p>${esc(z.detail)}</p>`}</div>`;
   const lp = lpaStatus(D.labs ?? []);
   const lpaLine = !lp.measured ? `<p class="note"><b>Lp(a) has never been measured.</b> It's set mostly by your genes, so one test is usually enough for life, and the 2026 ACC/AHA guideline recommends it for every adult. You could ask for it at your next blood draw.</p>`
     : lp.level !== "normal" ? `<p class="note"><b>Your Lp(a) is ${lp.level === "high" ? "high" : "elevated"}.</b> Because it's inherited, the guideline suggests testing parents, brothers, sisters and children too.</p>` : "";
@@ -70,21 +70,21 @@ export function riskContextCard(p) {
 }
 
 // ---------- home BP detail ----------
-export function bpDetail(p) {
+export function bpDetail(p, top = "") {
   const rows = D.bp ?? [];
   if (!rows.length) return "";
   const r = homeBP(rows), w = protocolWeek(rows);
   if (!r.sessions) return "";
   const lvl = w.level === "complete" ? ["Full week", "good"] : w.level === "minimum" ? ["Minimum met", "watch"] : null;
   const kv = [
-    ["Pulse pressure", `${r.pp} mmHg`, ppNote(r.pp, p.age)],
-    ["Mean arterial pressure", `${r.map} mmHg`, "Diastolic plus a third of the pulse pressure: roughly the average pressure pushing blood through your organs. It's an estimate at rest."],
-    ["Morning vs evening", r.mornEve ? `${r.mornEve.am.toFixed(0)} vs ${r.mornEve.pm.toFixed(0)} (${sign(r.mornEve.diff, 0)})` : "—", r.mornEve ? `Systolic, over ${r.mornEve.nAm} morning and ${r.mornEve.nPm} evening sittings. Most people read a little higher in the morning. The split shows which time of day drives your average.` : r.need.mornEve],
-    ["Day-to-day swing", r.variability ? `±${r.variability.sd.toFixed(1)} mmHg` : "—", r.variability ? `Standard deviation of your daily systolic averages over ${r.variability.days} days (average change from one day to the next: ${r.variability.arv.toFixed(1)} mmHg). In the Ohasama study, bigger day-to-day swings in home systolic pressure went with higher cardiovascular risk, whatever the average (Kikuya 2008). There's no agreed cut-off, so watch it against your own history.` : r.need.variability],
-    ["First vs second reading", r.firstReading ? `${sign(r.firstReading.diff, 1)} mmHg` : "—", r.firstReading ? `The first reading of a sitting minus the second, over ${r.firstReading.n} sittings. This is why the AHA asks for two readings, and why Pulse averages each sitting.` : r.need.firstReading],
+    ["Pulse pressure", `${r.pp} mmHg`, ppNote(r.pp, p.age), "pp"],
+    ["Mean arterial pressure", `${r.map} mmHg`, "Diastolic plus a third of the pulse pressure: roughly the average pressure pushing blood through your organs. It's an estimate at rest.", "map"],
+    ["Morning vs evening", r.mornEve ? `${r.mornEve.am.toFixed(0)} vs ${r.mornEve.pm.toFixed(0)} (${sign(r.mornEve.diff, 0)})` : "—", r.mornEve ? `Systolic, over ${r.mornEve.nAm} morning and ${r.mornEve.nPm} evening sittings. Most people read a little higher in the morning. The split shows which time of day drives your average.` : r.need.mornEve, "morneve"],
+    ["Day-to-day swing", r.variability ? `±${r.variability.sd.toFixed(1)} mmHg` : "—", r.variability ? `Standard deviation of your daily systolic averages over ${r.variability.days} days (average change from one day to the next: ${r.variability.arv.toFixed(1)} mmHg). In the Ohasama study, bigger day-to-day swings in home systolic pressure went with higher cardiovascular risk, whatever the average (Kikuya 2008). There's no agreed cut-off, so watch it against your own history.` : r.need.variability, "bpvar"],
+    ["First vs second reading", r.firstReading ? `${sign(r.firstReading.diff, 1)} mmHg` : "—", r.firstReading ? `The first reading of a sitting minus the second, over ${r.firstReading.n} sittings. This is why the AHA asks for two readings, and why Pulse averages each sitting.` : r.need.firstReading, "firstsecond"],
   ];
   return `<div class="card rise" style="--i:6"><div class="risk-h"><div><div class="lbl">Home readings, last 30 days ${tierChip("pp")}</div><b>This week: ${w.days} of 7 days</b><span class="muted"> · ${w.amDays} mornings · ${w.pmDays} evenings · ${w.paired} of ${w.sessions} sittings with two readings</span></div>${lvl ? `<span class="badge ${lvl[1]}">${lvl[0]}</span>` : ""}</div>
-    <div class="kv">${kv.map(([a, b, c]) => `<div><span>${a}</span><b>${esc(b)}</b><em>${esc(c)}</em></div>`).join("")}</div>
+    ${top}<div class="kv">${kv.map(([a, b, c, k]) => `<div class="tap" data-explain="${k}"><span>${a} <i class="chev">›</i></span><b>${esc(b)}</b><em>${esc(c)}</em></div>`).join("")}</div>
     <p class="note">AHA/AMA home method: two readings a minute apart, each morning before medication and each evening before dinner, for 7 days (3 at the least). Readings within 10 minutes count as one sitting. Cuff readings only; the band's estimate never enters these numbers.</p></div>`;
 }
 
