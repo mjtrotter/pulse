@@ -1,14 +1,14 @@
 // Labs: on-phone PDF import (with a review step) or manual entry, the panel over time, what it implies (each
 // paper's own formula), heart risk (AHA PREVENT from labs + home BP), and the lab context other screens use.
-import { derived } from "../analytics/labs.js?v=20261005164817";
-import { CANONICAL } from "../labs/pdfimport.js?v=20261005164817";
-import { phenoAge, PHENOAGE_INPUTS } from "../analytics/bioage.js?v=20261005164817";
-import { prevent } from "../analytics/prevent.js?v=20261005164817";
-import { preventCategory } from "../analytics/riskctx.js?v=20261005164817";
-import { riskContextCard, tierChip, whatMoved } from "./riskui.js?v=20261005164817";
-import { bpSummary } from "./bp.js?v=20261005164817";
-import { mean } from "./stats.js?v=20261005164817";
-import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20261005164817";
+import { derived } from "../analytics/labs.js?v=20261014180338";
+import { CANONICAL } from "../labs/pdfimport.js?v=20261014180338";
+import { phenoAge, PHENOAGE_INPUTS } from "../analytics/bioage.js?v=20261014180338";
+import { prevent } from "../analytics/prevent.js?v=20261014180338";
+import { preventCategory } from "../analytics/riskctx.js?v=20261014180338";
+import { riskContextCard, tierChip } from "./riskui.js?v=20261014180338";
+import { bpSummary } from "./bp.js?v=20261014180338";
+import { mean } from "./stats.js?v=20261014180338";
+import { css, D, esc, MON, pct, poly, S, sc, sign, smooth, st } from "./kit.js?v=20261014180338";
 
 /** Analytes Pulse tracks: the parser's canonical catalog (US conventional units, grouped). ref = a typical
  *  adult range used only when the report's own range isn't available; the lab's range and flag always win. */
@@ -86,7 +86,7 @@ export function preventCard(p) {
   const zones = st.horizon === "10" ? [[0, 0.03, "--good"], [0.03, 0.05, "--watch"], [0.05, 0.1, "--temp"], [0.1, 0.2, "--bad"]] : [];
   const changed = (st.whatIf.sbp != null && st.whatIf.sbp !== inp.sbp) || (st.whatIf.tc != null && st.whatIf.tc !== inp.totalChol);
   const L = latestLabs();
-  return `<div class="risk-h"><div><div class="lbl">${st.horizon}-year risk · heart attack or stroke ${tierChip("prevent")}</div><div class="num big2">${pct(v)}</div></div>${st.horizon === "10" && cat ? `<span class="badge ${cat[1]}">${cat[0]}</span>` : ""}</div>
+  return `<div class="risk-h"><div><div class="lbl">${st.horizon}-year risk · heart attack or stroke ${tierChip("prevent")}<button class="xi" data-explain="prevent" aria-label="How PREVENT is calculated">i</button></div><div class="num big2">${pct(v)}</div></div>${st.horizon === "10" && cat ? `<span class="badge ${cat[1]}">${cat[0]}</span>` : ""}</div>
     ${S(W0, 30, `${zones.length ? zones.map(([a0, a1, c]) => `<rect x="${x(a0)}" y="10" width="${x(a1) - x(a0)}" height="8" fill="${css(c)}" opacity=".5"/>`).join("") : `<rect x="4" y="10" width="${W0 - 8}" height="8" rx="4" fill="${css("--track")}"/>`}
       ${opt ? `<line x1="${x(Math.min(max, opt[k[0]]))}" x2="${x(Math.min(max, opt[k[0]]))}" y1="6" y2="22" stroke="${css("--ink2")}" stroke-width="1.5"/>` : ""}
       <circle cx="${x(Math.min(max, v))}" cy="14" r="7" fill="${css("--ink")}" stroke="${css("--bg")}" stroke-width="2.5"/>${changed && wi ? `<circle cx="${x(Math.min(max, wi[k[0]]))}" cy="14" r="5" fill="none" stroke="${css("--act")}" stroke-width="2"/>` : ""}
@@ -160,7 +160,7 @@ function bioAgeCard(p) {
   // Each past panel is scored at the age you were when it was drawn, so the trend isn't inflated by ageing alone.
   const ageAt = (date) => p.age - (Date.now() - new Date(`${date}T12:00:00`)) / (365.25 * 864e5);
   const hist = (D.labs ?? []).map((panel) => { const r = phenoAge(panel.v ?? {}, ageAt(panel.date)); return r?.phenoAge != null ? [panel.date, r.phenoAge, r.delta] : null; }).filter(Boolean);
-  return `<div class="risk-h"><div><div class="lbl">Biological age · PhenoAge ${tierChip("phenoage")}</div><div class="num big2">${b.phenoAge.toFixed(1)}<small>years</small></div></div><span class="badge ${d <= -1 ? "good" : d >= 1 ? "bad" : "watch"}">${d <= 0 ? `${Math.abs(d).toFixed(1)} younger` : `${d.toFixed(1)} older`}</span></div>
+  return `<div class="risk-h"><div><div class="lbl">Biological age · PhenoAge ${tierChip("phenoage")}<button class="xi" data-explain="phenoage" aria-label="How PhenoAge is calculated">i</button></div><div class="num big2">${b.phenoAge.toFixed(1)}<small>years</small></div></div><span class="badge ${d <= -1 ? "good" : d >= 1 ? "bad" : "watch"}">${d <= 0 ? `${Math.abs(d).toFixed(1)} younger` : `${d.toFixed(1)} older`}</span></div>
     <p class="note">From 9 routine blood markers and your age (Levine 2018, trained on NHANES mortality). It estimates the age at which your blood chemistry would be average; each year of "acceleration" was associated with roughly 9% higher mortality risk in the original cohort. ${hist.length > 1 ? `Across your complete panels (vs your age then): ${hist.map(([dt2, , dd]) => `${shortLabel(dt2)} ${dd <= 0 ? "−" : "+"}${Math.abs(dd).toFixed(1)}`).join(" → ")}.` : ""}</p>
     <div class="kv">${PHENOAGE_INPUTS.map((z) => { const k = z.key ?? z, x = latestLabs()[k === "uricacid" ? "uric" : k]; return x ? `<div><span>${esc(z.name ?? k)}</span><b>${x.value}</b><em>${shortLabel(x.date)}</em></div>` : ""; }).join("")}</div>
     <p class="note">Other blood-age formulas (Klemera–Doubal, commercial scores) weight markers differently, so their numbers won't match exactly; the trend across your annual panels is what matters. The headline uses your current age with your newest result for each marker (draw dates shown).</p>`;
@@ -171,12 +171,11 @@ function indicesCard(p) {
   const L = latestLabs(), cur = derived(Object.fromEntries(Object.entries(L).map(([k, x]) => [k, x.value])), ctxD);
   if (!cur.length) return `<p class="note" style="margin:0">Add glucose, insulin, triglycerides and cholesterol to see insulin-resistance and lipid indices, each with its paper's formula.</p>`;
   return cur.map((d) => {
-    const Ls = D.labs ?? [], pts = all.map((set, i) => [Ls[i].date, set.find((z) => z.key === d.key)?.value]).filter(([, v]) => v != null), id = `ix-${d.key}`;
+    const Ls = D.labs ?? [], pts = all.map((set, i) => [Ls[i].date, set.find((z) => z.key === d.key)?.value]).filter(([, v]) => v != null);
     const dec = Math.max(0, ...pts.map(([, v]) => (String(v).split(".")[1] ?? "").length)), fx = (v) => (v == null ? "—" : v.toFixed(dec));
     const trail = pts.length > 1 ? pts.map(([, v]) => fx(v)).join(" → ") : pts.length === 1 && pts[0][0] !== Ls[Ls.length - 1].date ? `<span class="older">${shortLabel(pts[0][0])}</span>` : "";
-    return `<div class="ix" data-expand="${id}"><div class="ix-n">${d.name}<small class="${d.band[1] === "good" ? "ok" : d.band[1] === "watch" ? "lo" : d.band[1] === "bad" ? "hi" : ""}">${d.band[0]}</small></div><div class="ix-t">${trail}</div><div class="ix-v"><b>${fx(d.value)}</b>${d.unit ? `<small>${d.unit}</small>` : ""}</div></div>
-      ${st.open.has(id) ? `<div class="ix-x">${tierChip(d.key) ? `<p class="ix-tier">${tierChip(d.key)}</p>` : ""}<code>${d.formula}</code><p>${d.note}</p>${whatMoved(d.key, p.age)}<p class="cite">${d.cite}</p></div>` : ""}`;
-  }).join("") + `<p class="note">Each index uses your newest result for every test it needs${[...new Set(Object.values(L).map((x) => x.date))].length > 1 ? ` (drawn from ${[...new Set(Object.values(L).map((x) => x.date))].sort().reverse().map(shortLabel).join(" and ")})` : ""}, with each paper's own formula and cut-offs; tap a row for the math. Arrows show the index at each draw.</p>`;
+    return `<div class="ix" data-explain="lab:${d.key}"><div class="ix-n">${d.name}<small class="${d.band[1] === "good" ? "ok" : d.band[1] === "watch" ? "lo" : d.band[1] === "bad" ? "hi" : ""}">${d.band[0]}</small></div><div class="ix-t">${trail}</div><div class="ix-v"><b>${fx(d.value)}</b>${d.unit ? `<small>${d.unit}</small>` : ""}</div></div>`;
+  }).join("") + `<p class="note">Each index uses your newest result for every test it needs${[...new Set(Object.values(L).map((x) => x.date))].length > 1 ? ` (drawn from ${[...new Set(Object.values(L).map((x) => x.date))].sort().reverse().map(shortLabel).join(" and ")})` : ""}, with each paper's own formula and cut-offs. Tap a row to see the formula worked through with your numbers, where you sit, and what moves it. Arrows show the index at each draw.</p>`;
 }
 /** Weekly resting HR and HRV over the past year, with each lab draw pinned. */
 export function labsVsBand() {

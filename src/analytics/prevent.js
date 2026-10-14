@@ -358,6 +358,67 @@ function runModel(modelTables, sex, terms) {
 
 // ---- Public API -----------------------------------------------------------
 
+/** Validates and clamps the inputs: {sex, v, warnings}, or {fail} (the result prevent() returns for unusable input). */
+function prepareInput(input) {
+  const warnings = [];
+
+  const age = input.age;
+  if (!isFiniteNumber(age) || age < AGE_RANGE.lo || age > AGE_RANGE.hi) {
+    return { fail: {
+      base: null,
+      warnings: [
+        `age must be a number between ${AGE_RANGE.lo} and ${AGE_RANGE.hi} ` +
+          `(PREVENT's validated range); got ${JSON.stringify(age)}.`,
+      ],
+    } };
+  }
+
+  const sex = normalizeSex(input.sex);
+  if (!sex) {
+    return { fail: {
+      base: null,
+      warnings: [`sex must be "male" or "female"; got ${JSON.stringify(input.sex)}.`],
+    } };
+  }
+
+  const requiredNumeric = ["totalChol", "hdl", "sbp", "bmi", "egfr"];
+  for (const key of requiredNumeric) {
+    if (!isFiniteNumber(input[key])) {
+      return { fail: {
+        base: null,
+        warnings: [`${key} is required and must be a finite number; got ${JSON.stringify(input[key])}.`],
+      } };
+    }
+  }
+
+  const v = {
+    age,
+    totalChol: clampWarn(input.totalChol, VALID_RANGES.totalChol, warnings),
+    hdl: clampWarn(input.hdl, VALID_RANGES.hdl, warnings),
+    sbp: clampWarn(input.sbp, VALID_RANGES.sbp, warnings),
+    bmi: clampWarn(input.bmi, VALID_RANGES.bmi, warnings),
+    egfr: clampWarn(input.egfr, VALID_RANGES.egfr, warnings),
+    diabetes: boolField(input, "diabetes", warnings),
+    smoker: boolField(input, "smoker", warnings),
+    bpTreatment: boolField(input, "bpTreatment", warnings),
+    statin: boolField(input, "statin", warnings),
+  };
+
+  if (isFiniteNumber(input.hba1c)) {
+    v.hba1c = clampWarn(input.hba1c, VALID_RANGES.hba1c, warnings);
+  } else if (input.hba1c !== undefined && input.hba1c !== null) {
+    warnings.push(`hba1c ${JSON.stringify(input.hba1c)} is not a finite number; ignored (treated as missing).`);
+  }
+
+  if (isFiniteNumber(input.uacr)) {
+    v.uacr = clampWarn(input.uacr, VALID_RANGES.uacr, warnings);
+  } else if (input.uacr !== undefined && input.uacr !== null) {
+    warnings.push(`uacr ${JSON.stringify(input.uacr)} is not a finite number; ignored (treated as missing).`);
+  }
+
+  return { sex, v, warnings };
+}
+
 /**
  * Computes AHA PREVENT 10- and 30-year risk of total CVD, ASCVD, and heart
  * failure for one person.
@@ -394,61 +455,9 @@ function runModel(modelTables, sex, terms) {
  *   either was supplied (SDI is always treated as "missing" -- see module doc).
  */
 export function prevent(input = {}) {
-  const warnings = [];
-
-  const age = input.age;
-  if (!isFiniteNumber(age) || age < AGE_RANGE.lo || age > AGE_RANGE.hi) {
-    return {
-      base: null,
-      warnings: [
-        `age must be a number between ${AGE_RANGE.lo} and ${AGE_RANGE.hi} ` +
-          `(PREVENT's validated range); got ${JSON.stringify(age)}.`,
-      ],
-    };
-  }
-
-  const sex = normalizeSex(input.sex);
-  if (!sex) {
-    return {
-      base: null,
-      warnings: [`sex must be "male" or "female"; got ${JSON.stringify(input.sex)}.`],
-    };
-  }
-
-  const requiredNumeric = ["totalChol", "hdl", "sbp", "bmi", "egfr"];
-  for (const key of requiredNumeric) {
-    if (!isFiniteNumber(input[key])) {
-      return {
-        base: null,
-        warnings: [`${key} is required and must be a finite number; got ${JSON.stringify(input[key])}.`],
-      };
-    }
-  }
-
-  const v = {
-    age,
-    totalChol: clampWarn(input.totalChol, VALID_RANGES.totalChol, warnings),
-    hdl: clampWarn(input.hdl, VALID_RANGES.hdl, warnings),
-    sbp: clampWarn(input.sbp, VALID_RANGES.sbp, warnings),
-    bmi: clampWarn(input.bmi, VALID_RANGES.bmi, warnings),
-    egfr: clampWarn(input.egfr, VALID_RANGES.egfr, warnings),
-    diabetes: boolField(input, "diabetes", warnings),
-    smoker: boolField(input, "smoker", warnings),
-    bpTreatment: boolField(input, "bpTreatment", warnings),
-    statin: boolField(input, "statin", warnings),
-  };
-
-  if (isFiniteNumber(input.hba1c)) {
-    v.hba1c = clampWarn(input.hba1c, VALID_RANGES.hba1c, warnings);
-  } else if (input.hba1c !== undefined && input.hba1c !== null) {
-    warnings.push(`hba1c ${JSON.stringify(input.hba1c)} is not a finite number; ignored (treated as missing).`);
-  }
-
-  if (isFiniteNumber(input.uacr)) {
-    v.uacr = clampWarn(input.uacr, VALID_RANGES.uacr, warnings);
-  } else if (input.uacr !== undefined && input.uacr !== null) {
-    warnings.push(`uacr ${JSON.stringify(input.uacr)} is not a finite number; ignored (treated as missing).`);
-  }
+  const prep = prepareInput(input);
+  if (prep.fail) return prep.fail;
+  const { sex, v, warnings } = prep;
 
   const terms = buildTerms(v);
   const result = { base: runModel(MODELS.base, sex, terms), warnings };
@@ -466,6 +475,24 @@ export function prevent(input = {}) {
   }
 
   return result;
+}
+
+/**
+ * One risk from `prevent()` taken apart: each predictor term's value, coefficient and contribution to the log-odds,
+ * for `model` ("base" | "a1c" | "uacr" | "full"), `horizon` (10 | 30) and `outcome` ("cvd" | "ascvd" | "hf"). Terms
+ * are centered on the paper's reference person (age 55, non-HDL 3.5 mmol/L, HDL 1.3 mmol/L, SBP 130, BMI 25,
+ * eGFR 90, no diabetes, non-smoker, no medication), so `constant` is that person's log-odds and each other term
+ * says how far this person's value moves it. Returns {risk, z, constant, parts: [{term, value, coef, contrib}],
+ * warnings} or null for unusable input.
+ */
+export function preventBreakdown(input = {}, { model = "base", horizon = 10, outcome = "ascvd" } = {}) {
+  const prep = prepareInput(input);
+  if (prep.fail || !MODELS[model]) return null;
+  const { sex, v, warnings } = prep, terms = buildTerms(v), table = MODELS[model][horizon];
+  const coefs = table.coef[sex][outcome];
+  const parts = table.terms.map((term, i) => ({ term, value: terms[term], coef: coefs[i], contrib: terms[term] * coefs[i] }));
+  const z = parts.reduce((a, p) => a + p.contrib, 0);
+  return { risk: 1 / (1 + Math.exp(-z)), z, constant: parts.find((p) => p.term === "constant")?.contrib ?? 0, parts: parts.filter((p) => p.term !== "constant"), warnings };
 }
 
 export { VALID_RANGES, AGE_RANGE };

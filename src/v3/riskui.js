@@ -1,15 +1,15 @@
 // Context the headline numbers can't carry on their own: the guideline's risk enhancers and the kidney grid next
 // to PREVENT, home-BP detail next to the cuff chart, before/after around a change the person logged, tier chips,
 // and which inputs moved a lab index. The math lives in analytics/ (riskctx, homebp, change, body, tiers).
-import { egfrAt, kdigo, KDIGO_RISK, lpaStatus, riskEnhancers, uacrAt } from "../analytics/riskctx.js?v=20261005164817";
-import { homeBP, ppNote, protocolWeek } from "../analytics/homebp.js?v=20261005164817";
-import { attributeChange, beforeAfter, POWER_FORMS, verdict } from "../analytics/change.js?v=20261005164817";
-import { bodyIndices } from "../analytics/body.js?v=20261005164817";
-import { tierOf } from "../analytics/tiers.js?v=20261005164817";
-import { dayOf, toMs } from "../core/time.js?v=20261005164817";
-import { isUS } from "../core/units.js?v=20261005164817";
-import { bpSummary } from "./bp.js?v=20261005164817";
-import { css, D, esc, hm, MON, S, sign, st } from "./kit.js?v=20261005164817";
+import { egfrAt, kdigo, KDIGO_RISK, lpaStatus, riskEnhancers, uacrAt } from "../analytics/riskctx.js?v=20261014180338";
+import { homeBP, ppNote, protocolWeek } from "../analytics/homebp.js?v=20261014180338";
+import { attributeChange, beforeAfter, POWER_FORMS, verdict } from "../analytics/change.js?v=20261014180338";
+import { bodyIndices } from "../analytics/body.js?v=20261014180338";
+import { tierOf } from "../analytics/tiers.js?v=20261014180338";
+import { dayOf, toMs } from "../core/time.js?v=20261014180338";
+import { isUS } from "../core/units.js?v=20261014180338";
+import { bpSummary } from "./bp.js?v=20261014180338";
+import { css, D, esc, hm, MON, S, sign, st } from "./kit.js?v=20261014180338";
 
 const shortDate = (date) => `${MON[+date.slice(5, 7) - 1]} ${+date.slice(8, 10)}`;
 const longDate = (date) => `${shortDate(date)}, ${date.slice(0, 4)}`;
@@ -141,5 +141,5 @@ export function whatMoved(key, age) {
 export function bodyRows(p) {
   if (!p.waist) return [["Waist", "—"]];
   const w = isUS() ? `${(p.waist / 2.54).toFixed(1)} in` : `${Math.round(p.waist)} cm`, ix = bodyIndices(p), whtr = ix.find((z) => z.key === "whtr");
-  return [["Waist", w], ...(whtr ? [["Waist / height", `${whtr.value.toFixed(2)} · ${whtr.band[0].toLowerCase()}`]] : [])];
+  return [["Waist", w], ...(whtr ? [['Waist / height <button class="xi" data-explain="whtr" aria-label="How waist-to-height is calculated">i</button>', `${whtr.value.toFixed(2)} · ${whtr.band[0].toLowerCase()}`]] : [])];
 }

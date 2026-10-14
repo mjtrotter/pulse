@@ -1,11 +1,12 @@
 // Advanced groups on the Trends tab: illness & apnea watch, body clock, heart fitness, energy, the
 // experimental cuff-calibrated BP estimate, and metabolic context from labs. Every row states how solid it
 // is; experimental ones carry a badge. Rows open a drill-down (daily series) or an explanation sheet.
-import { derived } from "../analytics/labs.js?v=20261005164817";
-import { mean, ols } from "./stats.js?v=20261005164817";
-import { ampm, clock, D, esc, sign } from "./kit.js?v=20261005164817";
-import { bmiOf, latestLabs } from "./labsui.js?v=20261005164817";
-import { cycleRow } from "./cycleui.js?v=20261005164817";
+import { derived } from "../analytics/labs.js?v=20261014180338";
+import { mean, ols } from "./stats.js?v=20261014180338";
+import { ampm, clock, D, esc, sign } from "./kit.js?v=20261014180338";
+import { bmiOf, latestLabs } from "./labsui.js?v=20261014180338";
+import { cycleRow } from "./cycleui.js?v=20261014180338";
+import { bandDip } from "./bpui.js?v=20261014180338";
 
 const XP = `<span class="xp">experimental</span>`;
 const INFO = (k) => `<button class="xi" data-explain="${k}" aria-label="How to read this">i</button>`;
@@ -69,19 +70,13 @@ function energyCard(A) {
 }
 
 function bpCard(A) {
-  const m = A.bp ?? { n: 0, need: 10 }, rows = [];
-  if (!m.usable) {
-    const best = m.models?.find((z) => z.name === m.best), last = m.models?.find((z) => z.name === "lastCuff");
-    const total = (m.n ?? 0) + (m.need ?? 14);
-    rows.push(row({ key: "bp", explain: "bpest", label: "Estimated blood pressure", value: "—", xp: true, text: (m.need ?? 14) > 0
-      ? `Pulse learns your personal relationship between the band's signals and your cuff. Log ${m.need ?? 14} more cuff readings (${m.n ?? 0} of ${total}). It only shows an estimate once it predicts your cuff better than simply reusing your last reading.`
-      : `Not yet: the best model misses your cuff by ${best?.maeSys?.toFixed(1) ?? "—"} mmHg vs ${last?.maeSys?.toFixed(1) ?? "—"} for your last reading, so no estimate is shown. Keep logging morning and evening readings.` }));
-  } else {
-    const pts = m.series?.points ?? [], lastP = pts[pts.length - 1];
-    const best = m.models?.find((z) => z.name === m.best);
-    rows.push(row({ key: "bp", explain: "bpest", label: "Estimated blood pressure", value: lastP ? `${Math.round(lastP.sys)}/${Math.round(lastP.dia)}` : "—", unit: "mmHg", xp: true, text: `Personal model (${esc(m.best)}) calibrated to ${m.n} cuff readings; misses by about ${best?.maeSys?.toFixed(1)} mmHg on readings it hadn't seen. Not for diagnosis (AHA); use your cuff for decisions.` }));
-    if (m.series?.dipping?.sys != null) rows.push(row({ key: "bp", explain: "bpdip", label: "Estimated night-time BP dip", value: m.series.dipping.sys.toFixed(0), unit: "%", xp: true, text: "Day vs night estimated systolic. Blood pressure normally falls 10–20% at night (a non-dipping pattern is linked with higher cardiovascular risk), but this is a model estimate, not an ambulatory reading." }));
-  }
+  const R = A.bp, rows = [], L = R?.latest, n = R?.cal?.n ?? 0, v = R?.check;
+  if (!L) return [row({ explain: "bpest", label: "Band blood pressure", value: "—", xp: true, text: "The band records a blood-pressure estimate with every HRV measurement while it's worn. Pulse calibrates it to your cuff readings (Measure → Blood pressure)." })];
+  rows.push(row({ explain: "bpest", label: "Band blood pressure", value: `${Math.round(L.sys)}/${Math.round(L.dia)}`, unit: "mmHg", xp: true, text: n
+    ? `The band's own estimate, calibrated to ${n} cuff reading${n > 1 ? "s" : ""}${v?.n ? `; on readings it hadn't seen it missed your cuff by ${v.sys.cal.toFixed(1)} mmHg systolic (${v.sys.raw.toFixed(1)} as measured)` : ""}. A trend between cuff readings, not a diagnosis (AHA); your cuff sets the category.`
+    : "As the band measured it, not yet calibrated. Log a cuff reading while wearing the band and Pulse learns how far off it runs for you." }));
+  const dd = bandDip(7);
+  if (dd && !dd.need) rows.push(row({ explain: "bpdip", label: "Estimated night-time BP dip", value: dd.sys.toFixed(0), unit: "%", xp: true, text: `Asleep vs awake on the band's calibrated line, last 7 days (${Math.round(dd.daySys)} awake, ${Math.round(dd.nightSys)} asleep). Blood pressure normally falls 10–20% at night; this is a model estimate, not an ambulatory reading.` }));
   return card(rows);
 }
 
@@ -90,7 +85,7 @@ function metabolicCard() {
   if (!Object.keys(L).length) return [cta(`<div class="adv-row" data-golabs2><b>Labs</b><span class="av">›</span><p>Import a lab PDF in Measure to see insulin resistance (HOMA-IR, TyG), lipid ratios, biological age and heart risk, each tied back to your band data.</p></div>`)];
   const d = derived(Object.fromEntries(Object.entries(L).map(([k, x]) => [k, x.value])), { bmi: bmiOf(D.profile) });
   const pick = ["homa_ir", "tyg", "tg_hdl", "remnant"].map((k) => d.find((z) => z.key === k)).filter(Boolean);
-  const rows = pick.map((z) => row({ key: "labs", sheet: "labs", label: z.name, value: z.value, unit: z.unit, text: `${z.band[0]}. ${z.cite}` }));
+  const rows = pick.map((z) => row({ explain: `lab:${z.key}`, label: z.name, value: z.value, unit: z.unit, text: `${z.band[0]}. ${z.cite}` }));
   if (L.a1c) rows.push(row({ sheet: "labs", label: "HbA1c", value: L.a1c.value, unit: "%", text: "Average blood sugar over about 3 months. Pulse can't measure glucose from the band; this comes from your lab report." }));
   return card(rows.length ? rows : [row({ sheet: "labs", label: "Labs on file", value: Object.keys(L).length, text: "Add glucose, insulin, triglycerides and cholesterol to see metabolic indices." })]);
 }
@@ -123,7 +118,7 @@ export function advBody(key) {
     hrr: p("Heart-rate recovery: how much your heart rate falls in the first minute after a detected workout ends. Faster recovery goes with better fitness and lower risk (Cole 1999). Free-living workouts end unevenly, so Pulse compares you only with yourself.") + (A.hrr?.series?.length ? p(A.hrr.series.slice(-6).map((z) => `${z.date.slice(5)}: ${z.hrr60 != null ? Math.round(z.hrr60) : "—"} bpm`).join(" · ")) : ""),
     load: p("Training load adds up heart-rate effort (Banister TRIMP, from your detected sessions) and, for sessions you tagged, effort × minutes (session RPE; Foster 2001). The two are shown separately because no combined 'strain' score has been validated."),
     energy: p("Resting energy uses Mifflin–St Jeor (1990). Active energy uses Keytel 2005's heart-rate equation during minutes above 30% of your heart-rate reserve. Wrist-worn calorie estimates carry large errors (27–93% in Shcherbina 2017), so these are for trends, not precise counting."),
-    bp: p("There is no raw pulse waveform on this band, so the usual cuffless method (pulse arrival time) isn't possible. Instead Pulse fits a personal model on your cuff readings using the band's own BP estimate, heart rate, skin temperature, recent steps and time of day, and tests it on readings it hasn't seen (leave-one-out). It must beat both your average and your last cuff reading by at least 2 mmHg before any estimate is shown (Mukkamala 2015 on why calibration alone can mislead).") + (A.bp?.models ? `<div class="kv">${A.bp.models.map((z) => `<div><span>${esc(z.name)}</span><b>${z.maeSys != null ? `±${z.maeSys.toFixed(1)} mmHg` : "—"}</b></div>`).join("")}</div>` : ""),
+    bp: p("The band exposes no raw pulse waveform, so the usual cuffless method (pulse arrival time) isn't possible; its own estimate is the vendor's. Pulse treats each cuff sitting as an anchor: it pairs it with the band's readings from the same half hour and fits, per person, how far off the band runs and how much of its swing is real (a Bayesian line that starts at the band as-is and moves with each anchor; older anchors count for less). Accuracy is scored only on readings the calibration hadn't seen (Mukkamala 2015 on why calibration alone can mislead)."),
     labs: p("Metabolic indices come from your lab panels with each paper's own formula (see Measure → Labs). The band can't measure blood glucose; nothing in its sensors tracks it reliably."),
   }[key] ?? "";
   return body;

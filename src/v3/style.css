@@ -1,10 +1,10 @@
 /* Pulse v3. Dark + light (follows the phone unless set in Profile). Motion is meaningful and honours Reduce Motion. */
-@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20261005164817") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20261005164817") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20261005164817") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20261005164817") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20261005164817") format("woff2"); font-display: swap; }
-@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20261005164817") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("../../fonts/Inter-Regular.woff2?v=20261014180338") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("../../fonts/Inter-Medium.woff2?v=20261014180338") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("../../fonts/Inter-SemiBold.woff2?v=20261014180338") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 300; src: url("../../fonts/InterDisplay-Light.woff2?v=20261014180338") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 500; src: url("../../fonts/InterDisplay-Medium.woff2?v=20261014180338") format("woff2"); font-display: swap; }
+@font-face { font-family: "Inter Display"; font-weight: 600; src: url("../../fonts/InterDisplay-SemiBold.woff2?v=20261014180338") format("woff2"); font-display: swap; }
 
 :root, [data-theme="dark"] {
   --bg: #05060a; --card: rgba(255,255,255,.045); --card-hi: rgba(255,255,255,.075); --line: rgba(255,255,255,.08); --grid: rgba(255,255,255,.06);
@@ -790,3 +790,39 @@ html, body { font-size: 16px; }
 .ba-h .link { margin-left: auto; font-size: 12.5px; }
 .ba .kv em.strong { color: var(--ink); font-weight: 600; }
 .ba .kv b small { font-size: 11px; font-weight: 500; color: var(--ink3); }
+
+/* blood pressure: the band's line, calibrated to cuff anchors */
+.bp-sub { display: block; font-size: 12.5px; color: var(--ink3); margin-top: 4px; }
+.bp-cuff { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; margin: 12px 0 10px; padding: 10px 12px; border-radius: 14px; background: var(--card-hi); cursor: pointer; }
+[data-theme="dark"] .bp-cuff { background: rgba(255,255,255,.05); }
+.bp-cuff b.num { font-size: 24px; line-height: 1; }
+.bp-cuff .bp-sub { margin-top: 2px; font-size: 11.5px; }
+.bp-cuff .badge { white-space: nowrap; }
+.lgd { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; font-size: 12px; }
+.lgd i { display: inline-block; flex: none; width: 14px; height: 0; border-top: 2.2px solid var(--heart); }
+.lgd i.d { border-top: 1.4px dashed var(--ink3); }
+.lgd i.c { width: 8px; height: 8px; border: 0; border-radius: 50%; background: var(--ink); }
+.cal-sum { margin: 0 0 10px; font-size: 14.5px; line-height: 1.45; }
+.kv.anc > div { font-size: 13.5px; }
+.stat3 > div.tap { cursor: pointer; }
+
+/* "How it's calculated" in the guide sheets */
+.calc { font-size: 13.5px; }
+.calc > p { margin: 8px 0; }
+.calc .kv { margin: 2px 0 10px; }
+.calc-f { margin: 10px 0 6px; }
+.calc-f span { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink3); margin-bottom: 4px; }
+.calc-f code, .calc-w { display: block; font: 12.5px/1.55 ui-monospace, "SF Mono", Menlo, monospace; padding: 9px 11px; border-radius: 10px; background: var(--card-hi); color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
+[data-theme="dark"] .calc-f code, [data-theme="dark"] .calc-w { background: rgba(255,255,255,.06); }
+.calc-w { margin: 6px 0; }
+.calc-w div:last-child { font-weight: 600; }
+.calc-h { margin: 16px 0 4px; font: 600 13.5px/1.3 Inter, sans-serif; color: var(--ink); }
+.sheet .calc-n, .calc-n { font-size: 12.5px; color: var(--ink2); }
+.pull { margin: 6px 0; }
+.pull > div { display: grid; grid-template-columns: 1fr 110px 46px; gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid var(--grid); font-size: 13.5px; }
+.pull > div:first-child { border-top: 0; }
+.pull span em { display: block; font-style: normal; font-size: 11.5px; color: var(--ink3); }
+.pull svg { width: 110px; height: 12px; }
+.pull b { text-align: right; font-variant-numeric: tabular-nums; }
+.ix .xi, .an .xi { flex: none; }
+.bp-cuff .lbl { display: block; line-height: 1.3; }

@@ -3,11 +3,21 @@
 // act. Zones come only from published cut-offs; where none exist (most HRV and wearable-derived measures) the
 // guide says so and judges the number against YOUR OWN usual instead. Rows and tiles open a guide with
 // data-explain="<key>"; the guide reads the current value itself, so callers pass nothing else.
-import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261005164817";
-import { advBody } from "./advanced.js?v=20261005164817";
-import { analyze, analyzed, current } from "./measure.js?v=20261005164817";
-import { bpCategory, bpSummary } from "./bp.js?v=20261005164817";
-import { clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261005164817";
+import { usualRange, HRV_NORM, decade } from "./stats.js?v=20261014180338";
+import { advBody } from "./advanced.js?v=20261014180338";
+import { analyze, analyzed, current } from "./measure.js?v=20261014180338";
+import { bpCategory, bpSummary } from "./bp.js?v=20261014180338";
+import { bandDip } from "./bpui.js?v=20261014180338";
+import { ANALYTES, bmiOf, labLabel, latestLabs, preventResult } from "./labsui.js?v=20261014180338";
+import { LABGUIDE } from "./labguide.js?v=20261014180338";
+import { tierChip, whatMoved } from "./riskui.js?v=20261014180338";
+import { calibrateAt, Z80 } from "../analytics/bpcal.js?v=20261014180338";
+import { bodyIndices } from "../analytics/body.js?v=20261014180338";
+import { derived } from "../analytics/labs.js?v=20261014180338";
+import { PHENO_AGE_YEARS, PHENO_REF, phenoChange, phenoParts, preventGroups, workings, zonesFor } from "../analytics/labcalc.js?v=20261014180338";
+import { preventBreakdown } from "../analytics/prevent.js?v=20261014180338";
+import { isUS } from "../core/units.js?v=20261014180338";
+import { ampm, clock, css, D, esc, S, sc, tDelta, tUnit } from "./kit.js?v=20261014180338";
 
 const TIER = { good: "Optimal", watch: "Borderline", bad: "Risk" };
 const num = (v) => v != null && Number.isFinite(v);
@@ -25,6 +35,7 @@ const f = (v, d = 0) => (num(v) ? v.toFixed(d) : "—");
  *  scale: [min, max], zones(): [[upperBound, tier, label, note?], …] ascending (last bound Infinity)
  *  soft: zones are orientation only (no validated cut-off for this exact measure), personal judgement leads
  *  personal: { values(), better: 1 | -1 | 0 }   judged against your own usual
+ *  calc(): HTML for "How it's calculated": the inputs, the formula and the arithmetic with your own numbers
  *  what, read, moves, act, caveat, cite, adv (key of advanced.js details to append) */
 export const GUIDE = {
   // ---------------------------------------------------------------- ECG: shape of the beat
@@ -371,6 +382,18 @@ export const GUIDE = {
     moves: "Raised by regular brisk aerobic exercise, especially intervals. Reduced by age (about 10% per decade), inactivity and weight gain.",
     caveat: "A non-exercise estimate, not a test. A measured value needs a graded exercise test.",
     cite: "Kaminsky, Mayo Clin Proc 2015 (FRIEND percentiles); Kodama, JAMA 2009; Jackson, Med Sci Sports Exerc 1990; Uth, Eur J Appl Physiol 2004.",
+    calc() {
+      const v = D.advData?.vo2, u = D.advData?.uth;
+      if (!v) return "<p>Needs your age, sex, height and weight in Profile and 14 days of steps.</p>";
+      const i = v.inputs, male = i.sex === "male" ? 1 : 0, t = [56.363, 1.921 * i.paR, -0.381 * i.age, -0.754 * i.bmi, 10.987 * male];
+      return kvRows([["Age", `${i.age}`, "Profile"], ["Sex", i.sex, "Profile"], ["BMI", i.bmi.toFixed(1), `${fmtW(i.weight)} at ${fmtH(i.height)}, Profile`], ["Typical steps", `${Math.round(i.stepsTypical).toLocaleString()} a day`, `median of your last ${i.n} days with steps`]])
+        + formula("VO₂max = 56.363 + 1.921 × activity rating − 0.381 × age − 0.754 × BMI + 10.987 × (1 if male)")
+        + worked([`activity rating = 7 × (steps − 3,553) ÷ (12,000 − 3,553), kept within 0–7`, `= 7 × (${Math.round(i.stepsTypical).toLocaleString()} − 3,553) ÷ 8,447 = ${i.paR.toFixed(2)}`,
+          `56.363 + 1.921 × ${i.paR.toFixed(2)} − 0.381 × ${i.age} − 0.754 × ${i.bmi.toFixed(1)} + 10.987 × ${male}`, `= ${t.map((x, k) => (k ? `${x < 0 ? "− " : "+ "}${Math.abs(x).toFixed(2)}` : x.toFixed(3))).join(" ")}`,
+          `= ${v.value.toFixed(1)} ml/kg/min (model error ±5.6: ${v.low.toFixed(0)}–${v.high.toFixed(0)})`])
+        + `<p class="calc-n">The activity rating is Pulse's own bridge from steps to the paper's 0–7 self-rating (3,553 steps a day, the least active quarter in Paluch 2022, as 0; 12,000, the lowest-mortality group in Saint-Maurice 2020, as 7). It has not been validated, which is why this estimate is marked experimental.</p>`
+        + (u ? `<h5 class="calc-h">Second method: heart-rate ratio (Uth 2004)</h5>${worked([`15.3 × maximum heart rate ${Math.round(u.inputs.hrmax)} ÷ resting heart rate ${Math.round(u.inputs.rhr)}`, `= 15.3 × ${(u.inputs.hrmax / u.inputs.rhr).toFixed(3)}`, `= ${u.value.toFixed(1)} ml/kg/min (±15%: ${u.low.toFixed(0)}–${u.high.toFixed(0)})`])}<p class="calc-n">${D.profile?.hrmax ? "Maximum heart rate is the one set in your profile" : D.profile?.betablocker ? "Maximum heart rate is estimated from age for someone on a beta-blocker (Brawner: 164 − 0.7 × age)" : "Maximum heart rate is estimated from age (Tanaka: 208 − 0.7 × age)"}; resting heart rate is your median overnight resting rate. Validated only in trained men aged 21–51, so read it as a cross-check.</p>` : "");
+    },
     adv: "vo2",
   },
   hrr: {
@@ -408,6 +431,17 @@ export const GUIDE = {
     what: "<b>Resting energy</b> is what your body burns doing nothing, estimated from weight, height, age and sex (Mifflin–St Jeor). <b>Active energy</b> is the extra from movement, estimated from heart rate in the minutes above 30% of your heart-rate reserve (Keytel).",
     read: "No good or bad: these are budgets. Resting energy is typically within about ±10% of a lab measurement for most adults, and it is the larger part of the day. Wrist-based active energy misses by 27–93% in studies, so use it for how today compares with other days, not to count calories.",
     cite: "Mifflin, Am J Clin Nutr 1990; Keytel, J Sports Sci 2005; Shcherbina, J Pers Med 2017.",
+    calc() {
+      const p = D.profile ?? {}, e = D.advData?.energy, male = p.sex === "male";
+      if (!(p.weight && p.height && p.age && p.sex)) return "<p>Needs your age, sex, height and weight in Profile.</p>";
+      const bmr = 10 * p.weight + 6.25 * p.height - 5 * p.age + (male ? 5 : -161);
+      return `<h5 class="calc-h">Resting energy (Mifflin–St Jeor)</h5>${worked([`10 × weight ${p.weight.toFixed(1)} kg + 6.25 × height ${Math.round(p.height)} cm − 5 × age ${p.age} ${male ? "+ 5 (men)" : "− 161 (women)"}`,
+          `= ${(10 * p.weight).toFixed(0)} + ${(6.25 * p.height).toFixed(0)} − ${5 * p.age} ${male ? "+ 5" : "− 161"}`, `= ${Math.round(bmr).toLocaleString()} kcal a day`])}
+        <h5 class="calc-h">Active energy (Keytel)</h5>${formula(male ? "kcal per minute = (−55.0969 + 0.6309 × heart rate + 0.1988 × weight + 0.2017 × age) ÷ 4.184" : "kcal per minute = (−20.4022 + 0.4472 × heart rate − 0.1263 × weight + 0.074 × age) ÷ 4.184")}
+        ${worked([`at 120 bpm for you: ${((male ? -55.0969 + 0.6309 * 120 + 0.1988 * p.weight + 0.2017 * p.age : -20.4022 + 0.4472 * 120 - 0.1263 * p.weight + 0.074 * p.age) / 4.184).toFixed(1)} kcal a minute`,
+          e?.n ? `today: ${e.n} minute${e.n > 1 ? "s" : ""} at or above 30% of your heart-rate reserve, summed = ${Math.round(e.active ?? 0)} kcal` : "today: no minutes yet at or above 30% of your heart-rate reserve"])}
+        <p class="calc-n">Only minutes at or above 30% of your heart-rate reserve count, because the formula was built from exercise and badly overstates calories at rest.</p>`;
+    },
     adv: "energy",
   },
   // ---------------------------------------------------------------- blood pressure
@@ -423,26 +457,162 @@ export const GUIDE = {
     cite: "Whelton, Hypertension 2018 (ACC/AHA 2017 guideline, home thresholds); Lewington, Lancet 2002.",
   },
   bpest: {
-    title: "Estimated blood pressure", unit: "mmHg", xp: true, fmt: (v) => v.toFixed(0),
-    live() { const m = D.advData?.bp, p = m?.series?.points, l = p?.[p.length - 1]; return { v: null, text: l ? `Latest estimate <b>${Math.round(l.sys)}/${Math.round(l.dia)}</b>.` : "" }; },
-    what: "A personal model: Pulse learns how your cuff readings relate to the band's own signals (its BP estimate, heart rate, skin temperature, recent steps, time of day) and only shows an estimate once it predicts your cuff better than simply reusing your last reading.",
-    read: "Read it against the home blood-pressure zones in the Measure tab, but only as a trend that hints at when to take a cuff reading. It cannot diagnose or rule out high blood pressure; the AHA advises against using cuffless readings for diagnosis. Use the cuff for decisions.",
-    adv: "bp",
+    title: "Band blood pressure, calibrated", unit: "mmHg", xp: true, fmt: (v) => v.toFixed(0),
+    live() {
+      const R = D.advData?.bp, L = R?.latest;
+      return { v: null, shown: L ? `${Math.round(L.sys)}/${Math.round(L.dia)}<small>mmHg</small>` : undefined, text: L ? `80% range ${Math.round(L.sys - Z80 * L.sysSd)}–${Math.round(L.sys + Z80 * L.sysSd)} systolic. The band itself read ${Math.round(L.raw.sys)}/${Math.round(L.raw.dia)} at ${ampm(new Date(L.ms).getHours() * 60 + new Date(L.ms).getMinutes())}${R.cal.n ? `; calibrated to ${R.cal.n} cuff reading${R.cal.n > 1 ? "s" : ""}` : "; no cuff readings to calibrate it yet"}.` : "" };
+    },
+    keyNote: "<b>Judge blood pressure by your cuff.</b> The cuff's 7-day average sets your category (Measure → Blood pressure); this line is the trend between cuff readings.",
+    what: "The band records its own blood-pressure estimate with every HRV measurement (every 10 minutes on Pulse's schedule). How it computes that is the maker's secret, and like every cuffless estimate it is off by a different amount for each person. Your home cuff readings are the anchors: each one is paired with the band's readings from the same half hour, and Pulse learns how far off the band runs for you (the <b>offset</b>) and how much of its rise and fall shows up on your cuff (the <b>slope</b>).",
+    read: "Read the line as a trend between cuff readings: if it climbs and stays up, check with your cuff. The shaded range is where 80% of cuff readings would be expected to land given what Pulse knows; it narrows as you add anchors. Accuracy is measured honestly: each cuff reading is predicted only from the readings before it, and compared with the band as measured and with simply reusing your previous cuff reading. Your home cuff average, not this line, sets your blood-pressure category and feeds your heart-risk estimate.",
+    moves: "Real changes (activity, stress, salt, alcohol, sleep, medicines) and things that fool the sensor: a loose band, cold hands, arm position and movement. A new band or a firmware update can shift the offset, so log a few cuff readings after either.",
+    act: "Use your cuff for decisions. If the band's line runs high for several days, take a week of morning and evening cuff readings and look at that average.",
+    caveat: "Cuffless blood pressure is not validated for diagnosis, and this band exposes no raw pulse waveform, so the estimate is only as good as the band's own signal plus your anchors. The European Society of Hypertension and the AHA advise against using cuffless readings to diagnose or treat high blood pressure.",
+    cite: "Mukkamala, IEEE Trans Biomed Eng 2015 (cuffless BP needs per-person calibration); Stergiou, J Hypertens 2023 (ESH recommendations for validating cuffless devices); Muntner, Hypertension 2019 (AHA statement on BP measurement).",
+    calc() {
+      const R = D.advData?.bp, L = R?.latest;
+      if (!L) return "<p>No band reading yet. The band records one with every HRV measurement while it's worn; they arrive when it syncs.</p>";
+      const c = calibrateAt(R.A, L.ms), r = Math.round, sg = (v) => `${v < 0 ? "−" : "+"}${Math.abs(v).toFixed(1)}`;
+      const chan = (name, raw, f) => (f.center == null
+        ? [`${name}: as measured ${r(raw)}; no anchors yet, so it stays ${r(raw)} with a wide range (±${r(Z80 * Math.hypot(f.sigma, Math.sqrt(f.cov[0][0])))})`]
+        : [`${name}: as measured ${raw.toFixed(1)}`, `+ offset ${sg(f.offset)}`, `+ (slope ${f.slope.toFixed(2)} − 1) × (${raw.toFixed(1)} − the band's usual ${f.center.toFixed(1)}) = ${sg((f.slope - 1) * (raw - f.center))}`, `= ${(raw + f.offset + (f.slope - 1) * (raw - f.center)).toFixed(1)}`]);
+      const v = R.check;
+      return `<p>The latest band reading (${new Date(L.ms).toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${ampm(new Date(L.ms).getHours() * 60 + new Date(L.ms).getMinutes())}), worked through with your calibration:</p>`
+        + formula("cuff ≈ band + offset + (slope − 1) × (band − band's usual)")
+        + worked(chan("Systolic", L.raw.sys, c.sys)) + worked(chan("Diastolic", L.raw.dia, c.dia))
+        + (c.n ? kvRows([["Anchors", `${c.n}`, "cuff sittings with a band reading within 30 min; each one's weight halves every 60 days"], ["Offset, systolic", `${sg(c.sys.offset)} ± ${Math.sqrt(c.sys.cov[0][0]).toFixed(1)}`, "positive means the band reads low for you"], ["Slope, systolic", `${c.sys.slope.toFixed(2)} ± ${Math.sqrt(c.sys.cov[1][1]).toFixed(2)}`, "starts at 1 (trust the band's swings) and moves only once anchors cover a spread"], ["Scatter of one reading", `±${c.sys.sigma.toFixed(1)} / ±${c.dia.sigma.toFixed(1)}`, "how far a single cuff sitting lands from the line, systolic / diastolic"]]) : "")
+        + (v.n ? `<p class="calc-n">On ${v.n} reading${v.n > 1 ? "s" : ""} it hadn't seen, the calibrated band missed your cuff by <b>${v.sys.cal.toFixed(1)}</b> mmHg systolic on average, vs ${v.sys.raw.toFixed(1)} for the band as measured and ${v.sys.last.toFixed(1)} for your previous cuff reading.</p>` : "")
+        + `<p class="calc-n">Before any anchor, Pulse assumes the band could be off by about ±15 mmHg systolic (±10 diastolic) and that its swings are right (slope 1 ± 0.3). Each anchor updates both in proportion to how much it tells; the scatter is learned from your own anchors.</p>`;
+    },
   },
   bpdip: {
     title: "Estimated night-time BP dip", unit: "%", scale: [-10, 30], fmt: (v) => v.toFixed(0), soft: true, xp: true,
-    live: () => ({ v: D.advData?.bp?.series?.dipping?.sys ?? null }),
+    live() { const d = bandDip(7); return { v: d && !d.need ? d.sys : null, text: d && !d.need ? `Last 7 days on the band's calibrated line: <b>${Math.round(d.daySys)}/${Math.round(d.dayDia)}</b> awake, <b>${Math.round(d.nightSys)}/${Math.round(d.nightDia)}</b> asleep.` : "" }; },
     zones: () => [[0, "bad", "Reverse dipper", "Pressure higher at night than by day."], [10, "watch", "Non-dipper", "Less than a 10% fall."], [20.001, "good", "Dipper", "A 10–20% fall is normal."], [Infinity, "watch", "Extreme dipper", "More than 20%."]],
-    what: "Blood pressure normally falls by 10–20% during sleep. Pulse compares your estimated daytime and night-time systolic pressure to see whether that fall happens.",
-    read: "In ambulatory (24-hour cuff) studies, a smaller dip (non-dipper) or a rise (reverse dipper) goes with a higher risk of heart disease and stroke. Pulse's version rests on a model estimate, not a 24-hour cuff, so the categories are for orientation. Apnea, alcohol, salt, poor sleep and some medicines reduce the dip.",
+    what: "Blood pressure normally falls by 10–20% during sleep. Pulse compares the average of the band's calibrated line while you were asleep (from your sleep record) with the average while you were awake.",
+    read: "In ambulatory (24-hour cuff) studies, a smaller dip (non-dipper) or a rise (reverse dipper) goes with a higher risk of heart disease and stroke. Pulse's version rests on the band's calibrated estimate, not a 24-hour cuff, so the categories are for orientation. Apnea, alcohol, salt, poor sleep and some medicines reduce the dip.",
+    calc() { const d = bandDip(7); return d && !d.need ? worked([`(awake ${d.daySys.toFixed(1)} − asleep ${d.nightSys.toFixed(1)}) ÷ awake ${d.daySys.toFixed(1)} × 100`, `= ${d.sys.toFixed(1)}% systolic (${d.dia.toFixed(1)}% diastolic)`, `from ${d.nDay} awake and ${d.nNight} asleep band readings`]) : "<p>Needs a night with the band on: at least 6 readings asleep and 12 awake.</p>"; },
     cite: "O'Brien, J Hypertens 2013 (ESH dipping categories).",
-    adv: "bp",
+  },
+  // ---------------------------------------------------------------- biological age, heart risk, body
+  phenoage: {
+    title: "Biological age (PhenoAge)", unit: "years", fmt: (v) => v.toFixed(1),
+    keyNote: "<b>No cut-offs.</b> Read the gap from your real age, and its direction across your panels.",
+    live() { const r = phenoNow(); return { v: r ? r.total : null, text: r ? `${Math.abs(r.total - r.age) < 0.05 ? "The same as" : `<b>${Math.abs(r.total - r.age).toFixed(1)} years ${r.total < r.age ? "younger" : "older"}</b> than`} your age (${r.age}).` : "" }; },
+    ...LABGUIDE.phenoage,
+    cite: "Levine, Aging (Albany NY) 2018; Liu, PLoS Med 2018.",
+    calc() {
+      const r = phenoNow();
+      if (!r) return "<p>Needs albumin, creatinine, glucose, hs-CRP, lymphocyte %, MCV, RDW, alkaline phosphatase and white cell count.</p>";
+      const L = latestLabs(), ref = phenoParts(PHENO_REF, r.age).total, rows = [...r.parts].sort((a, b) => Math.abs(b.pull) - Math.abs(a.pull)), max = Math.max(1, ...rows.map((p) => Math.abs(p.pull)));
+      const pullSum = rows.reduce((a, p) => a + p.pull, 0);
+      let out = `<p>PhenoAge is a weighted sum of the nine markers and your age, so it splits exactly. With every marker at a mid-range reference value, someone aged ${r.age} scores <b>${ref.toFixed(1)}</b>. Your markers then add or remove years:</p>
+        <div class="pull">${rows.map((p) => `<div><span>${esc(p.name)}<em>${p.value} ${esc(p.unit)} · ref ${PHENO_REF[p.key]}${L[p.key] ? ` · ${short(L[p.key].date)}` : ""}</em></span>${divBar(p.pull, max)}<b class="${p.pull > 0.05 ? "hi" : p.pull < -0.05 ? "ok" : ""}">${p.pull >= 0 ? "+" : "−"}${Math.abs(p.pull).toFixed(1)}</b></div>`).join("")}</div>`
+        + worked([`${ref.toFixed(1)} ${pullSum >= 0 ? "+" : "−"} ${Math.abs(pullSum).toFixed(1)} = ${r.total.toFixed(1)} years`]);
+      const ch = phenoHistory();
+      if (ch) {
+        const top = ch.c.parts.filter((p) => Math.abs(p.years) >= 0.1).sort((a, b) => Math.abs(b.years) - Math.abs(a.years));
+        out += `<h5 class="calc-h">Since your previous complete panel</h5><p>From ${short(ch.a)} to ${short(ch.b)} it moved <b>${ch.c.total >= 0 ? "+" : "−"}${Math.abs(ch.c.total).toFixed(1)} years</b>: ${top.map((p) => `${esc(p.name)} ${p.from} → ${p.to} (${p.years >= 0 ? "+" : "−"}${Math.abs(p.years).toFixed(1)})`).join(", ") || "no marker moved it much"}${Math.abs(ch.c.ageing) >= 0.05 ? `, and ageing between the draws ${ch.c.ageing >= 0 ? "+" : "−"}${Math.abs(ch.c.ageing).toFixed(1)}` : ""}.</p>`;
+      }
+      return out + `<p class="calc-n">Units are converted to the paper's (albumin g/L, creatinine µmol/L, glucose mmol/L, CRP as the log of mg/dL). Each year of age adds ${PHENO_AGE_YEARS.toFixed(2)} years. The reference values are mid-range adult results chosen by Pulse to make the pulls readable; they don't change the total.</p>`;
+    },
+  },
+  prevent: {
+    title: "Heart risk (AHA PREVENT)", unit: "%", scale: [0, 20], fmt: (v) => String(Math.round(v * 10) / 10),
+    live() { const res = preventNow(); return res?.R ? { v: res.R.ascvd10 * 100, text: `Your 10-year chance of a heart attack or stroke (ASCVD). Total cardiovascular events including heart failure: <b>${(res.R.cvd10 * 100).toFixed(1)}%</b>; 30-year ASCVD: <b>${(res.R.ascvd30 * 100).toFixed(1)}%</b>.` } : { v: null, text: res?.reason ? esc(res.reason) : "" }; },
+    zones: () => [[3, "good", "Low"], [5, "watch", "Borderline"], [10, "bad", "Intermediate"], [Infinity, "bad", "High"]],
+    ...LABGUIDE.prevent,
+    cite: "Khan, Circulation 2024 (PREVENT equations, Supplemental Table S12); 2026 ACC/AHA dyslipidemia guideline (categories).",
+    calc() {
+      const res = preventNow();
+      if (!res?.R) return `<p>${esc(res?.reason ?? "Not computable yet.")}</p>`;
+      const { inp } = res, model = inp.hba1c != null ? "a1c" : "base", G = preventGroups(preventBreakdown(inp, { model, horizon: 10, outcome: "ascvd" })), L = latestLabs(), yn = (b) => (b ? "yes" : "no");
+      const val = { Age: `${inp.age}`, Cholesterol: `total ${inp.totalChol}, HDL ${inp.hdl} mg/dL${inp.statin ? ", on a statin" : ""}`, "Blood pressure": `${inp.sbp} mmHg${inp.bpTreatment ? ", treated" : ""}`, "Diabetes and HbA1c": `${inp.diabetes ? "diabetes" : "no diabetes"}${inp.hba1c != null ? `, HbA1c ${inp.hba1c}%` : ""}`, Smoking: yn(inp.smoker), BMI: inp.bmi.toFixed(1), "Kidney function": `eGFR ${inp.egfr}` };
+      const lmax = Math.max(0.1, ...G.groups.map((g) => Math.abs(g.logOdds)));
+      return kvRows([["Age, sex", `${inp.age}, ${inp.sex}`, "Profile"], ["Total / HDL cholesterol", `${inp.totalChol} / ${inp.hdl} mg/dL`, L.tc ? `Lab · ${short(L.tc.date)}` : ""], ["Systolic blood pressure", `${inp.sbp} mmHg`, "home cuff, 7-day average"], ["BMI", inp.bmi.toFixed(1), "Profile"], ["eGFR", `${inp.egfr}`, L.egfr ? `Lab · ${short(L.egfr.date)}` : ""], ["HbA1c", inp.hba1c != null ? `${inp.hba1c}%` : "not on file", inp.hba1c != null && L.a1c ? `Lab · ${short(L.a1c.date)}` : "adds precision when on file"], ["Diabetes · smoker · BP medicine · statin", `${yn(inp.diabetes)} · ${yn(inp.smoker)} · ${yn(inp.bpTreatment)} · ${yn(inp.statin)}`, "Profile"]])
+        + `<p>The equation starts from a reference person: age 55, non-HDL cholesterol 135 mg/dL, HDL 50 mg/dL, systolic 130, BMI 25, eGFR 90, no diabetes, non-smoker, no medicines. Their 10-year risk${model === "a1c" ? " (with an HbA1c of 5.3%)" : ""} is <b>${(G.ref * 100).toFixed(1)}%</b>. Each of your inputs then multiplies the odds:</p>
+        <div class="pull">${G.groups.map((g) => `<div><span>${esc(g.name)}<em>${esc(val[g.name] ?? "")}</em></span>${divBar(g.logOdds, lmax)}<b class="${g.odds > 1.005 ? "hi" : g.odds < 0.995 ? "ok" : ""}">×${g.odds.toFixed(2)}</b></div>`).join("")}</div>`
+        + worked([`odds ${(G.ref / (1 - G.ref)).toFixed(4)} × ${G.groups.map((g) => g.odds.toFixed(2)).join(" × ")} = ${(res.R.ascvd10 / (1 - res.R.ascvd10)).toFixed(4)}`, `= ${(res.R.ascvd10 * 100).toFixed(1)}% risk`])
+        + `<p class="calc-n">${model === "a1c" ? "The HbA1c version of the equations is used because an HbA1c is on file. " : ""}Interactions with age (for example, cholesterol matters less at older ages) are counted with the other factor, because age itself can't change. Neighbourhood deprivation is part of the full model but isn't collected, so it's treated as unknown. ×1.00 means no effect.</p>`;
+    },
+  },
+  bmi: {
+    title: "Body mass index (BMI)", unit: "kg/m²", scale: [15, 42], fmt: (v) => v.toFixed(1),
+    live: () => ({ v: bmiOf(D.profile ?? {}) }),
+    zones: () => [[18.5, "watch", "Underweight"], [25, "good", "Healthy weight"], [30, "watch", "Overweight"], [Infinity, "bad", "Obesity"]],
+    ...LABGUIDE.bmi,
+    cite: "WHO, Technical Report Series 894 (2000); WHO Expert Consultation, Lancet 2004 (Asian populations).",
+    calc() { const p = D.profile ?? {}; if (!(p.height && p.weight)) return "<p>Needs height and weight in Profile.</p>"; const m = p.height / 100;
+      return worked([`weight ${p.weight.toFixed(1)} kg ÷ (height ${m.toFixed(2)} m)²`, `= ${p.weight.toFixed(1)} ÷ ${(m * m).toFixed(3)}`, `= ${(p.weight / (m * m)).toFixed(1)}`]) + (isUS() ? `<p class="calc-n">${fmtW(p.weight)} and ${fmtH(p.height)}, converted to kilograms and metres.</p>` : ""); },
+  },
+  whtr: {
+    title: "Waist-to-height ratio", unit: "", scale: [0.35, 0.75], fmt: (v) => v.toFixed(2),
+    live: () => ({ v: bodyIndices(D.profile ?? {}).find((z) => z.key === "whtr")?.value ?? null }),
+    zones: () => [[0.5, "good", "No increased risk"], [0.6, "watch", "Increased health risk"], [Infinity, "bad", "High health risk"]],
+    ...LABGUIDE.whtr,
+    cite: "Ashwell, Obes Rev 2012; NICE CG189 (2022 update).",
+    calc() { const p = D.profile ?? {}; return p.waist && p.height ? worked([`waist ${fmtLen(p.waist)} ÷ height ${fmtLen(p.height)}`, `= ${(p.waist / p.height).toFixed(3)}`]) : "<p>Needs your waist and height in Profile.</p>"; },
+  },
+  rfm: {
+    title: "Relative fat mass", unit: "% body fat", fmt: (v) => v.toFixed(1),
+    live: () => ({ v: bodyIndices(D.profile ?? {}).find((z) => z.key === "rfm")?.value ?? null }),
+    ...LABGUIDE.rfm,
+    cite: "Woolcott & Bergman, Sci Rep 2018.",
+    calc() { const p = D.profile ?? {}; if (!(p.waist && p.height && (p.sex === "female" || p.sex === "male"))) return "<p>Needs your sex, waist and height in Profile.</p>"; const f = p.sex === "female";
+      return worked([`64 − 20 × (height ${Math.round(p.height)} cm ÷ waist ${Math.round(p.waist)} cm)${f ? " + 12 (women)" : ""}`, `= 64 − 20 × ${(p.height / p.waist).toFixed(3)}${f ? " + 12" : ""}`, `= ${(64 - 20 * (p.height / p.waist) + (f ? 12 : 0)).toFixed(1)}%`]); },
   },
 };
 
 // Tiles that share a guide.
 const ALIAS = { qt: "qtc", lfhf: "spectrum", lnhf: "spectrum", lnlf: "spectrum", hfnu: "spectrum", hfpeak: "spectrum", sd1: "poincare", sd2: "poincare", csi: "poincare", cvi: "poincare", o2low: "spo2" };
-export const hasGuide = (k) => !!GUIDE[ALIAS[k] ?? k];
+export const hasGuide = (k) => !!(GUIDE[ALIAS[k] ?? k] || (k.startsWith("lab:") && LABGUIDE[k.slice(4)]));
+
+// ---------- "How it's calculated" pieces ----------
+const short = (date) => labLabel(date).replace(/, \d{4}$/, "");
+const fmtW = (kg) => (isUS() ? `${Math.round(kg / 0.45359237)} lb` : `${Math.round(kg)} kg`);
+const fmtH = (cm) => (isUS() ? `${Math.floor(cm / 30.48)}′${Math.round((cm / 2.54) % 12)}″` : `${Math.round(cm)} cm`);
+const fmtLen = (cm) => (isUS() ? `${(cm / 2.54).toFixed(1)} in` : `${Math.round(cm)} cm`);
+const formula = (f) => `<p class="calc-f"><span>Formula</span><code>${esc(f)}</code></p>`;
+const worked = (lines) => `<div class="calc-w">${lines.map((l) => `<div>${esc(l)}</div>`).join("")}</div>`;
+const kvRows = (rows) => `<div class="kv calc-in">${rows.map(([a, b, c]) => `<div><span>${esc(a)}</span><b>${esc(b)}</b>${c ? `<em>${esc(c)}</em>` : ""}</div>`).join("")}</div>`;
+/** A small diverging bar: right (warm) for values that raise the result, left (green) for values that lower it. */
+function divBar(v, max) {
+  const W = 110, mid = W / 2, w = Math.min(mid - 2, (Math.abs(v) / max) * (mid - 2));
+  return S(W, 12, `<line x1="${mid}" x2="${mid}" y1="0" y2="12" stroke="${css("--ink3")}" stroke-opacity=".5"/><rect x="${(v >= 0 ? mid : mid - w).toFixed(1)}" y="3" width="${Math.max(1, w).toFixed(1)}" height="6" rx="3" fill="${css(v >= 0 ? "--bad" : "--good")}" opacity=".8"/>`);
+}
+const labValues = () => Object.fromEntries(Object.entries(latestLabs()).map(([k, x]) => [k, x.value]));
+const labCtx = () => { const p = D.profile ?? {}; return { bmi: bmiOf(p), sex: p.sex ?? null, age: p.age ?? null, diabetes: !!p.diabetes }; };
+function phenoNow() { const age = D.profile?.age; if (!age) return null; const r = phenoParts(labValues(), age); return r ? { ...r, age } : null; }
+/** The two newest panels with all nine PhenoAge markers, each scored at the age at its draw. */
+function phenoHistory() {
+  const age = D.profile?.age; if (!age) return null;
+  const at = (date) => age - (Date.now() - new Date(`${date}T12:00:00`)) / (365.25 * 864e5);
+  const full = (D.labs ?? []).map((p) => ({ date: p.date, r: phenoParts(p.v ?? {}, at(p.date)) })).filter((x) => x.r);
+  if (full.length < 2) return null;
+  const a = full[full.length - 2], b = full[full.length - 1];
+  return { a: a.date, b: b.date, c: phenoChange(a.r, b.r) };
+}
+function preventNow() { try { return preventResult(D.profile ?? {}); } catch { return null; } }
+
+/** A guide for one lab-derived index (labs.js), built from your current results: the paper's zones, the formula
+ *  worked with your numbers, the index at each draw and what moved it. */
+function labGuide(key) {
+  const ctx = labCtx(), vals = labValues(), d = derived(vals, ctx).find((z) => z.key === key), text = LABGUIDE[key] ?? {};
+  if (!d) return null;
+  const zs = zonesFor(key, ctx), w = workings(key, vals, ctx), L = latestLabs(), fmt = (v) => String(+(+v).toFixed(3)).replace("-", "−");
+  const trail = (D.labs ?? []).map((panel) => [panel.date, derived(panel.v ?? {}, ctx).find((z) => z.key === key)?.value]).filter(([, v]) => v != null);
+  const zone = zs ? zs.zones.findIndex((z) => z[2] === d.band[0]) : -1;
+  const NAME = { age: ["Age", "years", "Profile"], sex: ["Sex", "", "Profile"], bmi: ["BMI", "", "Profile (height and weight)"], diabetes: ["Diabetes or fasting glucose ≥100", "", "Profile and labs"] };
+  const inputs = w ? w.inputs.map(([k, v]) => { const a = ANALYTES.find((z) => z.k === k), nm = NAME[k];
+    return [a?.n ?? nm?.[0] ?? k, `${k === "diabetes" ? (v ? "yes" : "no") : typeof v === "number" ? fmt(v) : v}${(a?.u ?? nm?.[1]) ? ` ${a?.u ?? nm[1]}` : ""}`, nm ? nm[2] : L[k] ? `Lab · ${short(L[k].date)}` : ""]; }) : [];
+  return {
+    title: d.name, unit: d.unit, fmt, scale: zs?.scale,
+    live: () => ({ v: d.value, zone: zone >= 0 ? zone : undefined, text: !zs && d.band[0] ? `${esc(d.band[0])}.` : "" }),
+    zones: () => zs?.zones ?? [],
+    what: text.what, read: text.read, moves: text.moves, act: text.act, caveat: [text.caveat, esc(d.note)].filter(Boolean).join(" "), cite: esc(d.cite),
+    calc: () => `${kvRows(inputs)}${formula(d.formula)}${w ? worked(w.lines) : ""}${trail.length > 1 ? `<p class="calc-n">At each draw: ${trail.map(([dt, v]) => `${short(dt)} <b>${fmt(v)}</b>`).join(" → ")}</p>` : ""}${whatMoved(key, D.profile?.age)}${tierChip(key) ? `<p class="calc-n">How much weight this number can bear: ${tierChip(key)}</p>` : ""}`,
+  };
+}
 
 /** FRIEND registry treadmill VO₂max percentiles for the profile's age and sex: [p10, p25, p50, p75, p90]. */
 const FRIEND = { male: { 20: [32.1, 40.1, 48.0, 55.2, 61.8], 30: [30.2, 35.9, 42.4, 49.2, 56.5], 40: [26.8, 31.9, 37.8, 45.0, 52.1], 50: [22.8, 27.1, 32.6, 39.7, 45.6], 60: [19.8, 23.7, 28.2, 34.5, 40.3], 70: [17.1, 20.4, 24.4, 30.4, 36.6] },
@@ -478,7 +648,7 @@ const rangeText = (g, zones, i) => { const lo = i ? zones[i - 1][0] : null, hi =
 
 /** The "How to read this" sheet for a guide key, or null when none exists. */
 export function explainSheet(key) {
-  const k = ALIAS[key] ?? key, g = GUIDE[k];
+  const k = ALIAS[key] ?? key, g = k.startsWith("lab:") ? labGuide(k.slice(4)) : GUIDE[k];
   if (!g) return null;
   const L = g.live?.() ?? { v: null }, v = L.v, zones = g.zones?.() ?? [], fmt = g.fmt ?? ((x) => String(x));
   const gg = { ...g, fmt, scale: g.scale };
@@ -486,15 +656,16 @@ export function explainSheet(key) {
   const pv = g.personal?.values?.() ?? [], pt = g.personal && num(v) ? personalTier(pv, v, g.personal.better) : null;
   // Headline verdict: a validated zone leads; for "soft" zones, or none, your own usual does.
   const verdict = z && !g.soft ? { tier: z[1], label: z[2] } : pt ? { tier: pt.tier, label: pt.label } : z ? { tier: z[1], label: z[2] } : null;
-  const shown = num(v) ? `${fmt(v)}${g.unit ? `<small>${g.unit}</small>` : ""}` : "—";
+  const shown = L.shown ?? (num(v) ? `${fmt(v)}${g.unit ? `<small>${g.unit}</small>` : ""}` : "—");
   const hasNum = !!g.scale && zones.length && g.scale[0] != null;
   const sec = (h, t) => (t ? `<h4 class="xz-h">${h}</h4><p>${t}</p>` : "");
   return `<div class="sh-h"><b>${g.title}${g.xp ? ' <span class="xp">experimental</span>' : ""}</b><button class="back" data-sheetclose>Done</button></div>
-    <div class="xz-now"><div><span class="xz-v">${shown}</span><span class="xz-l">${num(v) ? "your latest reading" : L.zone != null ? "right now" : "no reading yet"}</span></div>${verdict ? `<span class="badge ${verdict.tier}">${esc(verdict.label)}</span>` : ""}</div>
+    <div class="xz-now"><div><span class="xz-v">${shown}</span><span class="xz-l">${num(v) || L.shown ? "your latest reading" : L.zone != null ? "right now" : "no reading yet"}</span></div>${verdict ? `<span class="badge ${verdict.tier}">${esc(verdict.label)}</span>` : ""}</div>
     ${L.text ? `<p class="xz-live">${L.text}</p>` : ""}
     ${zones.length ? `<h4 class="xz-h">Where it sits</h4>${hasNum ? ladder(gg, zones, v) : ""}
       <div class="xz-zones">${zones.map((zz, i) => `<div class="xz-z ${i === idx ? "on" : ""}"><i style="background:var(--${zz[1]})"></i><span><b>${zz[2]}</b>${hasNum ? `<em>${rangeText(gg, zones, i)}${g.unit && g.unit !== "RA" ? ` ${g.unit}` : ""}</em>` : ""}${zz[3] ? `<small>${zz[3]}</small>` : ""}</span></div>`).join("")}</div>
-      <p class="xz-key">${g.soft ? `<b>For orientation only.</b> No validated cut-off exists for this exact measure, so these ranges are rough and ${g.personal ? "your own usual (below) is the fairer judge." : "the trend in your own readings matters more."}` : `<span class="key" style="--k:${css("--good")}">${TIER.good}</span> <span class="key" style="--k:${css("--watch")}">${TIER.watch}</span> <span class="key" style="--k:${css("--bad")}">${TIER.bad}</span> Published cut-offs; read together with how you feel, never alone.`}</p>` : `<p class="xz-key"><b>No good-or-bad range.</b> ${g.personal ? "No validated cut-off exists, so Pulse judges it against your own usual." : "This one is context, not a score."}</p>`}
+      <p class="xz-key">${g.soft ? `<b>For orientation only.</b> No validated cut-off exists for this exact measure, so these ranges are rough and ${g.personal ? "your own usual (below) is the fairer judge." : "the trend in your own readings matters more."}` : `<span class="key" style="--k:${css("--good")}">${TIER.good}</span> <span class="key" style="--k:${css("--watch")}">${TIER.watch}</span> <span class="key" style="--k:${css("--bad")}">${TIER.bad}</span> Published cut-offs; read together with how you feel, never alone.`}</p>` : `<p class="xz-key">${g.keyNote ?? `<b>No good-or-bad range.</b> ${g.personal ? "No validated cut-off exists, so Pulse judges it against your own usual." : "This one is context, not a score."}`}</p>`}
+    ${g.calc ? `<h4 class="xz-h">How it's calculated</h4><div class="calc">${g.calc()}</div>` : ""}
     ${g.personal ? `<h4 class="xz-h">Against your own usual</h4>${pt ? `<div class="xz-own"><span class="badge ${pt.tier}">${esc(pt.label)}</span><span>Your usual is <b>${fmt(pt.u.lo)}–${fmt(pt.u.hi)}${g.unit ? ` ${g.unit}` : ""}</b> (median ${fmt(pt.u.center)}, last ${pt.u.n} readings). That range is the median plus or minus one typical swing; outside two swings is unusual for you.</span></div>` : `<p>${num(v) ? `Pulse needs at least 5 earlier readings (${pv.filter(num).length} so far) to know your usual.` : "Appears once you have a reading and 5 earlier ones."}</p>`}` : ""}
     ${sec("What it is", g.what)}${sec("How to read it", g.read)}${sec("What moves it", g.moves)}${sec("When to act", g.act)}
     ${g.caveat ? `<div class="xz-cav"><b>Keep in mind</b> ${g.caveat}</div>` : ""}

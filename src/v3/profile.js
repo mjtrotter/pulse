@@ -1,10 +1,10 @@
 // Profile: who you are (feeds norms, goals and heart-rate zones), settings, heart risk from labs + home BP,
 // labs and what they imply, the band, your data, and first-run setup. Also the bottom sheets (forms).
-import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261005164817";
-import { mean, sd } from "./stats.js?v=20261005164817";
-import { css, D, esc, header, relMin, st } from "./kit.js?v=20261005164817";
-import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261005164817";
-import { bodyRows } from "./riskui.js?v=20261005164817";
+import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261014180338";
+import { mean, sd } from "./stats.js?v=20261014180338";
+import { css, D, esc, header, relMin, st } from "./kit.js?v=20261014180338";
+import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261014180338";
+import { bodyRows } from "./riskui.js?v=20261014180338";
 
 export const bmiOf = (p) => (p.height && p.weight ? p.weight / (p.height / 100) ** 2 : null);
 
@@ -25,7 +25,7 @@ export function profile(ctx) {
   const seg = (attr, opts, cur) => `<div class="seg small inline">${opts.map(([k, l]) => `<button ${attr}="${k}" class="${cur === k ? "on" : ""}">${l}</button>`).join("")}</div>`;
   const build = new URL(import.meta.url).searchParams.get("v") ?? "dev";
   return `${header(`${esc(p.name || "You")}${p.age ? ` · ${p.age}` : ""}`, "Profile", `<span class="avatar">${esc((p.name || "?")[0])}</span>`)}
-    <div class="card rise tapcard" style="--i:1" data-sheet="profile"><div class="kv">${[["Name", esc(p.name || "—")], ["Age", p.age ?? "—"], ["Sex", p.sex ?? "—"], ["Height", p.height ? (isUS() ? `${ft}′${inch}″` : `${Math.round(p.height)} cm`) : "—"], ["Weight", p.weight ? (isUS() ? `${Math.round(kg(p.weight))} lb` : `${Math.round(p.weight)} kg`) : "—"], ["BMI", b ? b.toFixed(1) : "—"], ...bodyRows(p)].map(([a, v]) => `<div><span>${a}</span><b>${v}</b></div>`).join("")}</div>
+    <div class="card rise tapcard" style="--i:1" data-sheet="profile"><div class="kv">${[["Name", esc(p.name || "—")], ["Age", p.age ?? "—"], ["Sex", p.sex ?? "—"], ["Height", p.height ? (isUS() ? `${ft}′${inch}″` : `${Math.round(p.height)} cm`) : "—"], ["Weight", p.weight ? (isUS() ? `${Math.round(kg(p.weight))} lb` : `${Math.round(p.weight)} kg`) : "—"], [`BMI${b ? ' <button class="xi" data-explain="bmi" aria-label="How BMI is calculated">i</button>' : ""}`, b ? b.toFixed(1) : "—"], ...bodyRows(p)].map(([a, v]) => `<div><span>${a}</span><b>${v}</b></div>`).join("")}</div>
       <p class="note">Tap to edit. Used for sleep need, step goals, heart-rate zones and population ranges, and written to the band.</p></div>
     <div class="card rise" style="--i:1"><div class="chips">${tog("betablocker", "Beta-blocker")}${tog("bpMeds", "BP medication")}${tog("statin", "Statin")}${tog("smoker", "Smoker")}${tog("diabetes", "Diabetes")}</div>
       <p class="note">Beta-blockers change heart-rate zones and workout detection; the rest feed the heart-risk estimate.</p>

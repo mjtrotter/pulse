@@ -1,18 +1,18 @@
 // Turns what's stored on the phone (day summaries, raw band rows, tags, ECG sessions, cuff readings, labs)
 // into the model the screens draw: one entry per calendar date (the night that ended that morning, and that
 // day's activity), minute-level detail for any night on demand, and today minute by minute.
-import * as db from "../core/db.js?v=20261005164817";
-import { dayOf, toMs } from "../core/time.js?v=20261005164817";
-import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20261005164817";
-import { detectWorkouts } from "../analytics/workouts.js?v=20261005164817";
-import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20261005164817";
-import { stepGoal } from "../analytics/scores.js?v=20261005164817";
-import { ASK_RATE, cleanOther, dateDraw, median, otherKey, triggers } from "./stats.js?v=20261005164817";
-import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20261005164817";
-import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20261005164817";
-import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20261005164817";
-import { fit as bpFit, series as bpSeries } from "../analytics/bpmodel.js?v=20261005164817";
-import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20261005164817";
+import * as db from "../core/db.js?v=20261014180338";
+import { dayOf, toMs } from "../core/time.js?v=20261014180338";
+import { assembleBursts, burstHRV, burstRespiration, irregularity } from "../analytics/ppi.js?v=20261014180338";
+import { detectWorkouts } from "../analytics/workouts.js?v=20261014180338";
+import { hrMaxFor, minuteSteps } from "../analytics/summary.js?v=20261014180338";
+import { stepGoal } from "../analytics/scores.js?v=20261014180338";
+import { ASK_RATE, cleanOther, dateDraw, median, otherKey, triggers } from "./stats.js?v=20261014180338";
+import { chronotype, hrRhythm, nocturnalDip, sri, sriSeries, tempRhythm } from "../analytics/bodyclock.js?v=20261014180338";
+import { cardiacCostSeries, energy, hrrTrend, vo2max, vo2maxUth, weeklyLoad } from "../analytics/fitness.js?v=20261014180338";
+import { apneaRisk, cusumRHR, illnessWatch } from "../analytics/watch.js?v=20261014180338";
+import { bpBand } from "../analytics/bpcal.js?v=20261014180338";
+import { cycles as cycleList, cyclePrompt, cycleStatus, detectShifts, perimenopause } from "../analytics/cycle.js?v=20261014180338";
 
 const DAYMS = 864e5;
 const addDays = (date, n) => { const d = new Date(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + n); return dayOf(d); };
@@ -101,7 +101,7 @@ export async function buildModel(store, profile) {
     sri: sri(sums), chrono: chronotype(sums), hrRhythm: hrRhythm(sums), tempRhythm: tempRhythm(sums),
     vo2: vo2max(profile, sums), uth: hrmax && rhrUsual ? vo2maxUth({ hrmax, rhr: rhrUsual }) : null,
     hrr: hrrTrend(sums), ccost: cardiacCostSeries(sums), load: weeklyLoad(sums, tagsForLoad),
-    energy: T?.energy ?? null, bmr: mifflin(profile), bp: await fitBp(store, bp, bandBp, ecg),
+    energy: T?.energy ?? null, bmr: mifflin(profile), bp: bpBand(bp, bandBp),
   };
   return {
     adv, cycle,
@@ -148,33 +148,6 @@ function entry(s, date, today) {
 export function mifflin(p) {
   if (!p?.weight || !p?.height || !p?.age || !p?.sex) return null;
   return 10 * p.weight + 6.25 * p.height - 5 * p.age + (p.sex === "male" ? 5 : -161);
-}
-
-/** The experimental cuff-calibrated BP model: gathers heart rate, temperature and steps around each cuff
- *  reading, runs the model ladder, and (only when a model is usable) estimates across the last 24 h. */
-async function fitBp(store, cuff, bandBp, ecg) {
-  if (cuff.length < 2) return { n: cuff.length, need: 14 - cuff.length, usable: false };
-  const iso = (ms) => { const d = new Date(ms), p2 = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
-  const hr = [], temp = [], acts = new Map();
-  for (const r of cuff.slice(-60)) {
-    const t = toMs(r.t);
-    hr.push(...(await db.range(store, "hr", iso(t - 12 * 60e3), iso(t + 60e3))));
-    temp.push(...(await db.range(store, "temp", iso(t - 35 * 60e3), iso(t + 35 * 60e3))));
-    const date = r.t.slice(0, 10);
-    if (!acts.has(date)) acts.set(date, minuteSteps(await db.range(store, "activity", `${date} 00:00:00`, `${date} 23:59:59`)));
-  }
-  const ecgRows = ecg.map((e) => ({ t: e.t, hr: e.result?.hrv?.hr ?? null, qtc: null }));
-  const ctx = { bandBp, hr, temp, ecg: ecgRows, stepsByMinute: (date, minute) => acts.get(date)?.get(minute) ?? 0 };
-  const model = bpFit(cuff.slice(-60), ctx, { minN: 14 }); // 7 features: at least 2 readings each before trusting a fit
-  const out = { ...model, models: model.models?.map(({ predict, ...m }) => m) };
-  if (model.usable) {
-    const now = Date.now(), from = iso(now - 864e5), to = iso(now);
-    const hr24 = await db.range(store, "hr", from, to), temp24 = await db.range(store, "temp", from, to);
-    const d0 = from.slice(0, 10), d1 = to.slice(0, 10);
-    for (const d of [d0, d1]) if (!acts.has(d)) acts.set(d, minuteSteps(await db.range(store, "activity", `${d} 00:00:00`, `${d} 23:59:59`)));
-    out.series = bpSeries(model, from, to, { ...ctx, hr: hr24, temp: temp24 });
-  }
-  return out;
 }
 
 /** Your usual steps for each clock hour (median of up to 28 prior days with step data), or null. */

@@ -1,31 +1,32 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20261005164817";
-import * as db from "./core/db.js?v=20261005164817";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261005164817";
-import { stamp } from "./core/time.js?v=20261005164817";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261005164817";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261005164817";
-import { scoreDays } from "./analytics/scores.js?v=20261005164817";
-import { mergeLabPanel } from "./analytics/labs.js?v=20261005164817";
-import { buildModel } from "./v3/model.js?v=20261005164817";
-import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261005164817";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261005164817";
-import { drill, M } from "./v3/drill.js?v=20261005164817";
-import { today } from "./v3/today.js?v=20261005164817";
-import { night } from "./v3/night.js?v=20261005164817";
-import { trends } from "./v3/trends.js?v=20261005164817";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261005164817";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20261005164817";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261005164817";
-import { advSheet } from "./v3/advanced.js?v=20261005164817";
-import { explainSheet } from "./v3/explain.js?v=20261005164817";
-import { cycleView } from "./v3/cycleui.js?v=20261005164817";
+import { Band } from "./core/ble.js?v=20261014180338";
+import * as db from "./core/db.js?v=20261014180338";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261014180338";
+import { stamp } from "./core/time.js?v=20261014180338";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261014180338";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261014180338";
+import { scoreDays } from "./analytics/scores.js?v=20261014180338";
+import { mergeLabPanel } from "./analytics/labs.js?v=20261014180338";
+import { apply, bandAt, calibrateAt } from "./analytics/bpcal.js?v=20261014180338";
+import { buildModel } from "./v3/model.js?v=20261014180338";
+import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261014180338";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261014180338";
+import { drill, M } from "./v3/drill.js?v=20261014180338";
+import { today } from "./v3/today.js?v=20261014180338";
+import { night } from "./v3/night.js?v=20261014180338";
+import { trends } from "./v3/trends.js?v=20261014180338";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261014180338";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20261014180338";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261014180338";
+import { advSheet } from "./v3/advanced.js?v=20261014180338";
+import { explainSheet } from "./v3/explain.js?v=20261014180338";
+import { cycleView } from "./v3/cycleui.js?v=20261014180338";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
 const PREVIEW = location.pathname.includes("/next/");
-const DB = DEMO ? "jcv8-demo3" : PREVIEW ? "jcv8-next" : db.DB_NAME;
+const DB = DEMO ? "jcv8-demo4" : PREVIEW ? "jcv8-next" : db.DB_NAME;
 const TABS = { today: "Live", night: "Sleep", trends: "Trends", measure: "Measure", profile: "Profile" };
 const $ = (s, r = document) => r.querySelector(s);
 
@@ -353,7 +354,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261005164817");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261014180338");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -483,9 +484,18 @@ document.addEventListener("submit", async (e) => {
   if (kind === "bp") {
     const s = parseInt(f.sys.value, 10), d = parseInt(f.dia.value, 10), p = parseInt(f.pulse.value, 10);
     if (!(s >= 70 && s <= 260 && d >= 30 && d <= 160 && d < s)) { toast("That reading looks off. Check the top and bottom numbers."); return; }
-    await db.put(ctx.store, "bp", { t: stamp(), sys: s, dia: d, pulse: Number.isFinite(p) ? p : null, arm: null, note: "" });
-    closeSheet(); toast(s > 180 || d > 120 ? "Saved. That's very high: rest 5 minutes and measure again; with chest pain, shortness of breath or weakness, call 911." : "Saved", s > 180 || d > 120 ? 8000 : 2500);
-    invalidate(); await stay(); return;
+    const t = stamp();
+    await db.put(ctx.store, "bp", { t, sys: s, dia: d, pulse: Number.isFinite(p) ? p : null, arm: null, note: "" });
+    closeSheet();
+    // Tell the person what the band said around the same time, and what the calibration (from earlier anchors) predicted.
+    const R = D.advData?.bp, b = R?.B?.length ? bandAt(R.B, Date.now()) : null, c = b && R.cal.n ? apply(calibrateAt(R.A, Date.now(), { before: true }), b) : null;
+    const r0 = Math.round, sg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(r0(v))}`;
+    const anchorMsg = b ? `The band read ${r0(b.sys)}/${r0(b.dia)} around then${c ? `; calibrated, ${r0(c.sys)}/${r0(c.dia)} (off by ${sg(c.sys - s)}/${sg(c.dia - d)})` : ""}. This reading now anchors it.`
+      : `It anchors the band once the band's reading from this half hour arrives${ctx.band?.connected ? "; syncing now" : " at the next sync"}.`;
+    toast(s > 180 || d > 120 ? "Saved. That's very high: rest 5 minutes and measure again; with chest pain, shortness of breath or weakness, call 911." : `Saved. ${anchorMsg}`, s > 180 || d > 120 ? 8000 : 6000);
+    invalidate(); await stay();
+    if (!b && ctx.band?.connected) sync();
+    return;
   }
   if (kind === "profile" || kind === "obprofile") {
     const p = readProfileForm(f, ctx.profile); if (!p) return;
@@ -618,7 +628,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20261005164817");
+    const { seedDemo } = await import("./demo.js?v=20261014180338");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

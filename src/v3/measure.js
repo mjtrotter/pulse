@@ -1,15 +1,15 @@
 // Measure: finger ECG rhythm checks and home cuff readings, each charted as recorded over time. A recording
 // opens in a full-screen view with the strip, HRV, breathing from the ECG and the average beat, all computed
 // on the phone by Pulse's analytics modules.
-import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20261005164817";
-import { advancedHRV } from "../analytics/hrv_advanced.js?v=20261005164817";
-import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20261005164817";
-import { toMs } from "../core/time.js?v=20261005164817";
-import { clamp, mean, median, ols, sd } from "./stats.js?v=20261005164817";
-import { bpCategory, bpSummary } from "./bp.js?v=20261005164817";
-import { bpDetail } from "./riskui.js?v=20261005164817";
-import { labsBlock } from "./labsui.js?v=20261005164817";
-import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20261005164817";
+import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20261014180338";
+import { advancedHRV } from "../analytics/hrv_advanced.js?v=20261014180338";
+import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20261014180338";
+import { toMs } from "../core/time.js?v=20261014180338";
+import { clamp, mean, median, ols } from "./stats.js?v=20261014180338";
+import { bpCategory, bpSummary } from "./bp.js?v=20261014180338";
+import { bpBlock } from "./bpui.js?v=20261014180338";
+import { labsBlock } from "./labsui.js?v=20261014180338";
+import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20261014180338";
 
 const SETTLE = 5;
 const AN = new Map();
@@ -285,41 +285,6 @@ function recList() {
   }).join("")}${list.length > 5 ? `<button class="more" data-allrecs>${st.allRecs ? "Show fewer" : `Show all ${list.length} recordings`}</button>` : ""}</div>`;
 }
 
-// ---------- blood pressure ----------
-function bpSection() {
-  const all = D.bp, now = Date.now();
-  if (!all.length) return `<div class="card rise" style="--i:6"><p class="note" style="margin:0 0 12px">No readings yet. A week of morning and evening readings gives a reliable home average (AHA), and it feeds your heart-risk estimate.</p><button class="cta" data-sheet="bp">Log a reading</button></div>`;
-  const sum = bpSummary(all), n = +st.bpAgg, rows = all.filter((r) => toMs(r.t) >= now - n * 864e5);
-  const cat = sum ? bpCategory(sum.sys, sum.dia) : null;
-  const W0 = 340, H = 180, x = sc(now - n * 864e5, now, 30, W0 - 8), lo = Math.min(70, ...rows.map((r) => r.dia)) - 4, hi = Math.max(150, ...rows.map((r) => r.sys)) + 4, y = sc(lo, hi, H - 22, 8), bw = Math.max(1.6, Math.min(6, ((W0 - 40) / n) * 0.36));
-  const roll = []; for (let d = n - 1; d >= 0; d--) { const endT = now - d * 864e5, w = all.filter((r) => toMs(r.t) > endT - 7 * 864e5 && toMs(r.t) <= endT); if (w.length >= 4) roll.push([x(endT), y(mean(w.map((r) => r.sys))), y(mean(w.map((r) => r.dia)))]); }
-  const am = (r) => +r.t.slice(11, 13) < 12;
-  const body = [80, 130].map((v) => `<line x1="30" x2="${W0 - 6}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--watch")}" stroke-opacity=".6"/><text x="26" y="${y(v) + 4}" text-anchor="end" class="axis">${v}</text>`).join("")
-    + [100, 140].filter((v) => v > lo && v < hi).map((v) => `<line x1="30" x2="${W0 - 6}" y1="${y(v)}" y2="${y(v)}" stroke="${css("--grid")}"/><text x="26" y="${y(v) + 4}" text-anchor="end" class="axis">${v}</text>`).join("")
-    + rows.map((r) => `<line x1="${x(toMs(r.t)).toFixed(1)}" x2="${x(toMs(r.t)).toFixed(1)}" y1="${y(r.sys)}" y2="${y(r.dia)}" stroke="${css("--heart")}" stroke-width="${bw.toFixed(1)}" stroke-linecap="round" opacity="${am(r) ? 0.9 : 0.5}"/>`).join("")
-    + (roll.length >= 2 ? `<path d="${smooth(roll.map((p) => [p[0], p[1]]), 0.12)}" fill="none" stroke="${css("--ink")}" stroke-width="1.8" opacity=".75"/><path d="${smooth(roll.map((p) => [p[0], p[2]]), 0.12)}" fill="none" stroke="${css("--ink")}" stroke-width="1.8" opacity=".45"/>` : "")
-    + [n, n / 2, 0].map((d, i) => { const dt = new Date(now - d * 864e5); return `<text x="${x(now - d * 864e5)}" y="${H - 4}" text-anchor="${["start", "middle", "end"][i]}" class="axis">${d === 0 ? "today" : `${MON[dt.getMonth()]} ${dt.getDate()}`}</text>`; }).join("");
-  // Band estimate vs cuff: pair each cuff reading with the band's nearest BP estimate (±60 min).
-  const pairs = all.map((r) => { const t = toMs(r.t); let best = null; for (const b of D.bandBp) { const d = Math.abs(toMs(b.t) - t); if (d <= 3600e3 && (!best || d < best.d)) best = { ...b, d }; } return best ? { cuff: r.sys, band: best.sys } : null; }).filter(Boolean);
-  let cmp = "";
-  if (pairs.length >= 3) {
-    const diffs = pairs.map((p) => p.band - p.cuff), bias = mean(diffs), sdd = sd(diffs) ?? 0, maeBand = mean(diffs.map(Math.abs));
-    const seq = all.map((r) => r.sys), maeLast = seq.length >= 2 ? mean(seq.slice(1).map((v, i) => Math.abs(v - seq[i]))) : null;
-    const X = sc(0, Math.max(maeBand, maeLast ?? 0) * 1.15 || 1, 0, 170);
-    cmp = `<div class="card rise" style="--i:7"><div class="lbl" style="margin-bottom:10px">Can the band estimate your BP?</div>
-      <div class="cmp"><div><span>Band's estimate</span>${S(170, 12, `<rect x="0" y="2" width="${X(maeBand)}" height="8" rx="4" fill="${css("--bad")}" opacity=".8"/>`)}<b>${maeBand.toFixed(1)}</b></div>
-        ${maeLast != null ? `<div><span>Your previous cuff reading</span>${S(170, 12, `<rect x="0" y="2" width="${X(maeLast)}" height="8" rx="4" fill="${css("--good")}" opacity=".8"/>`)}<b>${maeLast.toFixed(1)}</b></div>` : ""}</div>
-      <p class="note">Average miss in systolic mmHg over ${pairs.length} readings paired with the band's own estimate. The band reads ${Math.abs(bias).toFixed(0)} mmHg ${bias < 0 ? "low" : "high"} on average (95% within ${(bias - 1.96 * sdd).toFixed(0)} to ${(bias + 1.96 * sdd).toFixed(0)}). Pulse shows cuff numbers only; the AHA advises against cuffless readings for diagnosis.</p></div>`;
-  }
-  const first = all[0], diff = sum && toMs(first.t) < now - 21 * 864e5 ? sum.sys - mean(all.filter((r) => toMs(r.t) < toMs(first.t) + 7 * 864e5).map((r) => r.sys)) : null;
-  return `<div class="card rise" style="--i:6"><div class="bp-h"><div><div class="lbl">Home average · last 7 days <button class="xi" data-explain="bp" aria-label="How to read blood pressure">i</button></div><div class="num big2">${sum ? `${sum.sys.toFixed(0)}<span class="slash">/</span>${sum.dia.toFixed(0)}` : "—"}<small>mmHg</small></div></div>${cat ? `<span class="badge ${cat[1]}">${cat[0]}</span>` : ""}</div>
-      <div class="agg">${[["14", "2W"], ["30", "30D"], ["90", "90D"]].map(([k, l]) => `<button data-bpagg="${k}" class="${st.bpAgg === k ? "on" : ""}">${l}</button>`).join("")}</div>
-      ${rows.length ? scrubbable(uid("s"), W0, H, body, rows.map((r) => [x(toMs(r.t)), y(r.sys), `${recWhen(r.t)} · <b>${r.sys}/${r.dia}</b>${r.pulse ? ` · pulse ${r.pulse}` : ""}`]), `Bars: each cuff reading, systolic to diastolic (morning solid).${roll.length >= 2 ? " Lines: 7-day averages." : ""}`) : `<p class="note">No readings in this window.</p>`}
-      <div class="stat3"><div><b>${diff != null ? sign(diff, 0) : "—"}</b><span>systolic vs first week</span></div><div><b>${all.filter((r) => toMs(r.t) >= now - 7 * 864e5).length}</b><span>readings this week</span></div><div><b>${all.length}</b><span>readings logged</span></div></div>
-      <p class="note">${sum ? "" : "The average appears after 2 readings. "}ACC/AHA home thresholds: stage 1 from 130/80, stage 2 from 135/85.</p>
-      <button class="cta ghost" data-sheet="bp" style="margin-top:6px">Log a reading</button></div>${bpDetail(D.profile ?? {})}${cmp}`;
-}
-
 export function measure(ctx) {
   const lastSn = D.ecg[D.ecg.length - 1], E = lastSn && analyzed(lastSn) ? analyze(lastSn) : null;
   const ecgIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13h4l2-5 3 10 3-13 2 8h6"/></svg>`;
@@ -328,12 +293,12 @@ export function measure(ctx) {
   return `${header("ECG · blood pressure · labs", "Measure", `<button class="hchip btn ${ctx.band?.connected ? "on" : ""}" data-syncchip><i></i><span>${ctx.band?.connected ? esc(bandName ?? "Connected") : "Connect"}</span></button>`)}
     <div class="acts rise" style="--i:1">
       <div class="card act" style="--tint:${css("--heart")}"><span class="act-i">${ecgIcon}</span><b>Heart rhythm</b><span>30 s – 2 min, finger on the silver plate</span><button class="cta" data-record>Start</button></div>
-      <div class="card act" style="--tint:${css("--spo2")}"><span class="act-i">${bpIcon}</span><b>Blood pressure</b><span>Log a reading from your home cuff</span><button class="cta" data-sheet="bp">Log</button></div>
+      <div class="card act" style="--tint:${css("--spo2")}"><span class="act-i">${bpIcon}</span><b>Blood pressure</b><span>Log a cuff reading; it anchors the band</span><button class="cta" data-sheet="bp">Log</button></div>
     </div>
     ${E ? `<button class="card latest rise" style="--i:2" data-rec="${esc(lastSn.t)}"><span class="pulse-dot ${E.verdict[1]}"></span><span class="lt-t"><span class="lbl">Latest · ${recWhen(lastSn.t)}</span><b>${E.verdict[0]}</b><span>${E.s?.hrv ? `${E.s.hrv.hr.toFixed(0)} bpm · HRV ${E.s.hrv.rmssd.toFixed(0)} ms` : ""}${E.mb?.qtcF ? ` · QTc ${E.mb.qtcF.toFixed(0)} ms` : ""}${E.edrOk ? ` · breathing ${E.edr.rate.toFixed(1)}/min` : ""}</span></span><span class="chev">›</span></button>` : ""}
     ${D.ecg.length ? `<div class="sec rise" style="--i:3"><h2>Rhythm checks over time</h2><span class="lbl">${D.ecg.length} recording${D.ecg.length > 1 ? "s" : ""}</span></div>${ecgHistory()}<div class="sec rise" style="--i:4"><h2>Recordings</h2><span class="lbl">tap to open</span></div>${recList()}` : `<div class="sec rise" style="--i:3"><h2>Rhythm checks</h2></div>${empty("No recordings yet", "A 30-second check shows your rhythm, heart rate and HRV. Morning checks, seated and before coffee, are the most comparable over time.", 3)}`}
-    <div class="sec rise" style="--i:5"><h2>Blood pressure over time</h2><span class="lbl">home cuff</span></div>
-    ${bpSection()}
+    <div class="sec rise" style="--i:5"><h2>Blood pressure</h2><span class="lbl">band, anchored to your cuff</span></div>
+    ${bpBlock()}
     ${labsBlock(ctx)}
     <p class="note foot">A screening tool, not a diagnosis. Everything is analysed and stored on this phone.</p>`;
 }

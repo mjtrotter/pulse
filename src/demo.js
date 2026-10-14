@@ -1,9 +1,9 @@
 // 30 days of synthetic data for ?demo (separate database). Deterministic, and shaped like a real
 // 58-year-old wearer: a regular-ish sleeper with one late night, a mild illness 10-12 days ago,
 // evening walks and two strength sessions a week.
-import * as db from "./core/db.js?v=20261005164817";
-import { ecgSummary, ECG_FS } from "./analytics/ecg.js?v=20261005164817";
-import { stamp } from "./core/time.js?v=20261005164817";
+import * as db from "./core/db.js?v=20261014180338";
+import { ecgSummary, ECG_FS } from "./analytics/ecg.js?v=20261014180338";
+import { stamp } from "./core/time.js?v=20261014180338";
 
 const BAND = "DEMO";
 
@@ -59,7 +59,7 @@ export async function seedDemo(store) {
         ppi.push({ band: BAND, t: tt, page: 0, pages: burst.length > 56 ? 2 : 1, ppi: burst.slice(0, 56) });
         if (burst.length > 56) ppi.push({ band: BAND, t: tt, page: 1, pages: 2, ppi: burst.slice(56) });
         hrv.push({ band: BAND, t: tt, hrv_ms: Math.max(12, Math.round(41 - (ill ? 9 : 0) - (late ? 11 : 0) + gauss() * 6)), vascular_aging: 0,
-          hr: Math.round(rhrBase + 3), stress: 30, bp_sys: Math.round(117 + gauss() * 5), bp_dia: Math.round(75 + gauss() * 4) });
+          hr: Math.round(rhrBase + 3), stress: 30, bp_sys: Math.round(106 + gauss() * 4), bp_dia: Math.round(68 + gauss() * 3) });
       }
     }
     if (k === 0) continue; // today: only the night so far, plus the morning below
@@ -94,6 +94,13 @@ export async function seedDemo(store) {
         spo2.push({ band: BAND, t: tt, pct: Math.min(100, Math.round(97.6 + gauss() * 0.8)) });
       }
       if (m % 10 === 0) temp.push({ band: BAND, t: stamp(new Date(day.getTime() + m * 60e3)), c: Math.round((32.4 + gauss() * 0.6) * 10) / 10 });
+      // The band's own BP estimate with each HRV measurement: it reads about 9 low for this wearer and catches
+      // ~70% of the real swing (morning surge, the evening walk), so the cuff readings have something to anchor.
+      if (m % 10 === 0) {
+        const walking = walks && hh >= walkAt && hh < walkAt + 0.8, sys = 125 + 4 * Math.cos(((hh - 8) / 24) * 2 * Math.PI) + (walking ? 12 : 0) + (ill ? 3 : 0), dia = 81 + 2 * Math.cos(((hh - 8) / 24) * 2 * Math.PI) + (walking ? 4 : 0);
+        hrv.push({ band: BAND, t: stamp(new Date(day.getTime() + m * 60e3)), hrv_ms: Math.max(10, Math.round(30 + gauss() * 6)), vascular_aging: 0, hr: Math.round(bpm), stress: 45,
+          bp_sys: Math.round(113 + 0.7 * (sys - 120) + gauss() * 4), bp_dia: Math.round(73 + 0.7 * (dia - 78) + gauss() * 3) });
+      }
     }
   }
   // This morning since waking.
@@ -102,6 +109,10 @@ export async function seedDemo(store) {
   for (let t = w0.getTime(); t < now.getTime(); t += 30e3) {
     const hh = new Date(t).getHours() + new Date(t).getMinutes() / 60;
     hr.push({ band: BAND, t: stamp(new Date(t)), bpm: Math.round(68 + 5 * Math.sin(((hh - 9) / 24) * 2 * Math.PI) + gauss() * 2.5), source: "auto" });
+    if ((t - w0.getTime()) % 600e3 === 0 && t > w0.getTime()) {
+      const sys = 125 + 4 * Math.cos(((hh - 8) / 24) * 2 * Math.PI), dia = 81 + 2 * Math.cos(((hh - 8) / 24) * 2 * Math.PI);
+      hrv.push({ band: BAND, t: stamp(new Date(t)), hrv_ms: Math.max(10, Math.round(30 + gauss() * 6)), vascular_aging: 0, hr: 70, stress: 45, bp_sys: Math.round(113 + 0.7 * (sys - 120) + gauss() * 4), bp_dia: Math.round(73 + 0.7 * (dia - 78) + gauss() * 3) });
+    }
   }
   let todaySteps = 0;
   for (let t = today0.getTime(); t < now.getTime(); t += 600e3) {
