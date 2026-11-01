@@ -1,15 +1,15 @@
 // Measure: finger ECG rhythm checks and home cuff readings, each charted as recorded over time. A recording
 // opens in a full-screen view with the strip, HRV, breathing from the ECG and the average beat, all computed
 // on the phone by Pulse's analytics modules.
-import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20261014195152";
-import { advancedHRV } from "../analytics/hrv_advanced.js?v=20261014195152";
-import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20261014195152";
-import { toMs } from "../core/time.js?v=20261014195152";
-import { clamp, mean, median, ols } from "./stats.js?v=20261014195152";
-import { bpCategory, bpSummary } from "./bp.js?v=20261014195152";
-import { bpBlock } from "./bpui.js?v=20261014195152";
-import { labsBlock } from "./labsui.js?v=20261014195152";
-import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20261014195152";
+import { bandpass, ecgPeaks, ecgSummary, ECG_FS } from "../analytics/ecg.js?v=20261031205706";
+import { advancedHRV } from "../analytics/hrv_advanced.js?v=20261031205706";
+import { edrFusion, medianBeat, morphologyFilter } from "../analytics/edr.js?v=20261031205706";
+import { toMs } from "../core/time.js?v=20261031205706";
+import { clamp, mean, median, ols } from "./stats.js?v=20261031205706";
+import { bpCategory, bpSummary } from "./bp.js?v=20261031205706";
+import { bpBlock } from "./bpui.js?v=20261031205706";
+import { labsBlock } from "./labsui.js?v=20261031205706";
+import { ampm, css, D, dname, empty, esc, header, MON, poly, S, sc, scrubbable, sign, smooth, st, uid } from "./kit.js?v=20261031205706";
 
 const SETTLE = 5;
 const AN = new Map();

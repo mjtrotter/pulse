@@ -1,27 +1,27 @@
 // Pulse v3 shell: boot, band connection and sync, the four tabs (Today, Night, Measure, Profile), the
 // full-screen drill-down, sheets, and every tap. Screens are rendered from the model in v3/model.js.
-import { Band } from "./core/ble.js?v=20261014195152";
-import * as db from "./core/db.js?v=20261014195152";
-import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261014195152";
-import { stamp } from "./core/time.js?v=20261014195152";
-import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261014195152";
-import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261014195152";
-import { scoreDays } from "./analytics/scores.js?v=20261014195152";
-import { mergeLabPanel } from "./analytics/labs.js?v=20261014195152";
-import { apply, bandAt, calibrateAt } from "./analytics/bpcal.js?v=20261014195152";
-import { buildModel } from "./v3/model.js?v=20261014195152";
-import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261014195152";
-import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261014195152";
-import { drill, M } from "./v3/drill.js?v=20261014195152";
-import { today } from "./v3/today.js?v=20261014195152";
-import { night } from "./v3/night.js?v=20261014195152";
-import { trends } from "./v3/trends.js?v=20261014195152";
-import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261014195152";
-import { onboarding, profile, sheet } from "./v3/profile.js?v=20261014195152";
-import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261014195152";
-import { advSheet } from "./v3/advanced.js?v=20261014195152";
-import { explainSheet } from "./v3/explain.js?v=20261014195152";
-import { cycleView } from "./v3/cycleui.js?v=20261014195152";
+import { Band } from "./core/ble.js?v=20261031205706";
+import * as db from "./core/db.js?v=20261031205706";
+import { DEFAULT_SCHEDULE, syncBand } from "./core/sync.js?v=20261031205706";
+import { stamp } from "./core/time.js?v=20261031205706";
+import { ftInToCm, isUS, lbToKg, setUnits } from "./core/units.js?v=20261031205706";
+import { ensureSummaries, recomputeDays } from "./analytics/summary.js?v=20261031205706";
+import { scoreDays } from "./analytics/scores.js?v=20261031205706";
+import { mergeLabPanel } from "./analytics/labs.js?v=20261031205706";
+import { apply, bandAt, calibrateAt } from "./analytics/bpcal.js?v=20261031205706";
+import { buildModel } from "./v3/model.js?v=20261031205706";
+import { cleanOther, OTHER, otherKey } from "./v3/stats.js?v=20261031205706";
+import { D, SCRUB, css, esc, relMin, resetUid, root, st, stateOf } from "./v3/kit.js?v=20261031205706";
+import { drill, M } from "./v3/drill.js?v=20261031205706";
+import { today } from "./v3/today.js?v=20261031205706";
+import { night } from "./v3/night.js?v=20261031205706";
+import { trends } from "./v3/trends.js?v=20261031205706";
+import { analyze, analyzed, current, ecgOverview, ecgTrace, hrvPanel, liveView, measure, recView, runRecording } from "./v3/measure.js?v=20261031205706";
+import { onboarding, profile, sheet } from "./v3/profile.js?v=20261031205706";
+import { labReviewSheet, normKey, preventCard } from "./v3/labsui.js?v=20261031205706";
+import { advSheet } from "./v3/advanced.js?v=20261031205706";
+import { explainSheet } from "./v3/explain.js?v=20261031205706";
+import { cycleView } from "./v3/cycleui.js?v=20261031205706";
 
 const params = new URLSearchParams(location.search);
 const DEMO = params.has("demo");
@@ -344,16 +344,19 @@ async function copyLive() {
   if (!ctx.profile.onboarded) st.obStep = 1;
   await render();
 }
+const localISO = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const shiftISO = (iso, n) => { const x = new Date(`${iso}T12:00:00`); x.setDate(x.getDate() + n); return localISO(x); };
+const dayGap = (a, b) => Math.abs(Math.round((new Date(`${a}T12:00:00`) - new Date(`${b}T12:00:00`)) / 864e5));
 /** Period logging (settings "periods" = [{start, end}]). */
 async function logPeriod(action, date = null) {
-  const d0 = new Date(), iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const today = iso(d0), yday = iso(new Date(d0.getTime() - 864e5));
+  const today = localISO(), yday = shiftISO(today, -1);
   if (action === "dismiss") { st.cycleDismiss = D.latest?.date; await stay(); return; }
   const periods = ((await db.getSetting(ctx.store, "periods")) ?? []).sort((a, b) => (a.start < b.start ? -1 : 1));
   const open = periods.filter((p) => !p.end).pop();
   if (action.startsWith("start")) {
     const start = date ?? (action === "start-yday" ? yday : today);
-    if (!periods.some((p) => Math.abs((new Date(p.start) - new Date(start)) / 864e5) < 10)) periods.push({ start, end: null });
+    if (periods.some((p) => dayGap(p.start, start) < 10)) { toast("A period is already logged within 10 days of that date. Tap it in your cycle history to edit."); return; }
+    periods.push({ start, end: null });
     toast("Period start logged");
   } else if (action.startsWith("end")) {
     const end = date ?? (action === "end-yday" ? yday : today);
@@ -376,7 +379,7 @@ function pickLabPdf() {
     const file = inp.files[0]; if (!file) return;
     toast("Reading the report…", 15000);
     try {
-      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261014195152");
+      const { importLabPdf } = await import("./labs/pdfimport.js?v=20261031205706");
       st.labDraft = await importLabPdf(await file.arrayBuffer());
       document.querySelector(".toast")?.remove();
       showSheet("labreview");
@@ -442,8 +445,12 @@ document.addEventListener("click", async (e) => {
     if (modal) { await prepare(); redrawModal(); render(false); } else await stay();
     return;
   }
+  const dp = on("[data-delperiod]");
+  if (dp) { const periods = ((await db.getSetting(ctx.store, "periods")) ?? []).filter((p) => p.start !== dp.dataset.delperiod); await db.setSetting(ctx.store, "periods", periods); closeSheet(); toast("Period deleted"); invalidate(); if (modal) { await prepare(); redrawModal(); render(false); } else await stay(); return; }
   const pa = on("[data-period]");
   if (pa) { await logPeriod(pa.dataset.period); if (modal) { invalidate(); await prepare(); redrawModal(); render(false); } return; }
+  // sheets open from inside drill-down views too (the Cycle screen's "Log a period" lives in one)
+  const sh = on("[data-sheet]"); if (sh) { showSheet(sh.dataset.sheet); return; }
   if (modal) return;
   // prompts
   const d = on("[data-draft]"); if (d) { const k = d.dataset.draft; st.draft.has(k) ? st.draft.delete(k) : st.draft.add(k); d.classList.toggle("on"); const sv = $("[data-answer=save]"); if (sv) sv.disabled = !st.draft.size; return; }
@@ -488,7 +495,6 @@ document.addEventListener("click", async (e) => {
   const de = on("[data-delevent]"); if (de) { const events = ((await db.getSetting(ctx.store, "events")) ?? []).filter((x) => (x.id ?? x.date) !== de.dataset.delevent); await db.setSetting(ctx.store, "events", events); invalidate(); await stay(); return; }
   if (on("[data-allevents]")) { st.allEvents = !st.allEvents; await stay(); return; }
   const ex = on("[data-expand]"); if (ex) { const id = ex.dataset.expand; st.open.has(id) ? st.open.delete(id) : st.open.add(id); await stay(); return; }
-  const sh = on("[data-sheet]"); if (sh) { showSheet(sh.dataset.sheet); return; }
   const tg = on("[data-tagg]"); if (tg) { st.tagg = tg.dataset.tagg; await stay(); return; }
   const tt = on("[data-ttopic]"); if (tt) { st.ttopic = tt.dataset.ttopic; await render(); scrollTo(0, 0); return; }
   const o = on("[data-open]"); if (o && M[o.dataset.open]) { openModal(o, "drill", o.dataset.open); if (o.dataset.openview) { st.view = o.dataset.openview; redrawModal(); } }
@@ -549,7 +555,7 @@ document.addEventListener("submit", async (e) => {
     // "has your period ended?" prompt fires for an old one. A period that just started stays open.
     periods.sort((a, b) => (a.start < b.start ? -1 : 1));
     const plus = (d, n) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
-    const weekAgo = plus(new Date().toISOString().slice(0, 10), -7);
+    const weekAgo = plus(localISO(), -7);
     for (const p of periods) if (!p.end && p.start < weekAgo) { p.end = plus(p.start, 4); p.endEstimated = true; }
     await db.setSetting(ctx.store, "periods", periods);
     closeSheet(); toast("Saved"); invalidate();
@@ -557,9 +563,13 @@ document.addEventListener("submit", async (e) => {
     return;
   }
   if (kind === "period") {
-    const periods = ((await db.getSetting(ctx.store, "periods")) ?? []).filter((p) => p.start !== f.start.value);
-    if (f.end.value && f.end.value < f.start.value) { toast("The end date is before the start."); return; }
-    periods.push({ start: f.start.value, end: f.end.value || null });
+    const orig = f.orig?.value || null, start = f.start.value, end = f.end.value || null;
+    const periods = ((await db.getSetting(ctx.store, "periods")) ?? []).filter((p) => p.start !== start && p.start !== orig);
+    if (start > localISO() || (end && end > localISO())) { toast("Periods can't be dated in the future."); return; }
+    if (end && end < start) { toast("The end date is before the start."); return; }
+    if (end && dayGap(start, end) > 14) { toast("That's a long period (over 14 days). Check the dates."); return; }
+    if (periods.some((p) => dayGap(p.start, start) < 10)) { toast("Another period starts within 10 days of that. Edit or delete that one first."); return; }
+    periods.push({ start, end });
     await db.setSetting(ctx.store, "periods", periods.sort((a, b) => (a.start < b.start ? -1 : 1)));
     closeSheet(); toast("Period logged"); invalidate(); if (modal) { await prepare(); redrawModal(); render(false); } else await stay(); return;
   }
@@ -651,7 +661,7 @@ async function main() {
   if (DEMO) {
     document.body.classList.add("demo");
     if (!(await db.getSetting(ctx.store, "profile"))) await db.setSetting(ctx.store, "profile", { name: "Alex", age: 58, sex: "male", height: 178, weight: 89, units: "us", onboarded: true });
-    const { seedDemo } = await import("./demo.js?v=20261014195152");
+    const { seedDemo } = await import("./demo.js?v=20261031205706");
     if (await seedDemo(ctx.store)) ctx.log("Demo data created");
     if (!(await db.getSetting(ctx.store, "labs"))) await db.setSetting(ctx.store, "labs", [
       { date: "2026-02-10", source: "demo", v: { tc: 238, ldl: 161, hdl: 41, tg: 212, glucose: 104, insulin: 12.8, a1c: 5.6, hscrp: 1.6, egfr: 84, apob: 118, alt: 31, tsh: 2.1, vitd: 24 } },

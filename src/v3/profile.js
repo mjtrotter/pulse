@@ -1,10 +1,10 @@
 // Profile: who you are (feeds norms, goals and heart-rate zones), settings, heart risk from labs + home BP,
 // labs and what they imply, the band, your data, and first-run setup. Also the bottom sheets (forms).
-import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261014195152";
-import { mean, sd } from "./stats.js?v=20261014195152";
-import { css, D, esc, header, relMin, st } from "./kit.js?v=20261014195152";
-import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261014195152";
-import { bodyRows } from "./riskui.js?v=20261014195152";
+import { cmToFtIn, isUS, kg } from "../core/units.js?v=20261031205706";
+import { mean, sd } from "./stats.js?v=20261031205706";
+import { css, D, esc, header, relMin, st } from "./kit.js?v=20261031205706";
+import { ANALYTES, MANUAL_ANALYTES } from "./labsui.js?v=20261031205706";
+import { bodyRows } from "./riskui.js?v=20261031205706";
 
 export const bmiOf = (p) => (p.height && p.weight ? p.weight / (p.height / 100) ** 2 : null);
 
@@ -98,10 +98,14 @@ export function sheet(kind, ctx) {
     <p>The start dates of your last 2–3 periods let Pulse estimate your next one right away. Approximate dates are fine; leave any you don't know blank.</p>
     <form data-form="pastperiods" class="fform">${[1, 2, 3].map((n) => `<label class="full">${n === 1 ? "Most recent start" : n === 2 ? "The one before" : "And before that"}<input name="p${n}" type="date"></label>`).join("")}
       <button class="cta full" type="submit">Save</button></form>`;
-  if (kind === "period") return `<div class="sh-h"><b>Log a period</b><button class="back" data-sheetclose>Cancel</button></div>
+  if (kind === "period" || kind.startsWith("period:")) {
+    const orig = kind.startsWith("period:") ? kind.slice(7) : null, cur = orig ? (D.cycle?.periods ?? []).find((x) => x.start === orig) : null;
+    const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return `<div class="sh-h"><b>${orig ? "Edit period" : "Log a period"}</b><button class="back" data-sheetclose>Cancel</button></div>
     <p>Add the day it started, and the day it ended if it's over. Past periods help Pulse learn your cycle faster.</p>
-    <form data-form="period" class="fform"><label>Started<input name="start" type="date" value="${new Date().toISOString().slice(0, 10)}" required></label><label>Ended<input name="end" type="date"></label>
-      <button class="cta full" type="submit">Save</button></form>`;
+    <form data-form="period" class="fform"><input type="hidden" name="orig" value="${orig ?? ""}"><label>Started<input name="start" type="date" max="${today}" value="${orig ?? today}" required></label><label>Ended<input name="end" type="date" max="${today}" value="${cur?.end ?? ""}"></label>
+      <button class="cta full" type="submit">Save</button>${orig ? `<button class="cta full ghost" type="button" data-delperiod="${orig}">Delete this period</button>` : ""}</form>`;
+  }
   if (kind === "labs") return `<div class="sh-h"><b>Add lab results</b><button class="back" data-sheetclose>Cancel</button></div>
     <p>Type the numbers from your report (US units). Leave anything you don't have blank.</p>
     <form data-form="labs" class="fform"><label class="full">Date drawn<input name="date" type="date" value="${new Date().toISOString().slice(0, 10)}" required></label>

@@ -4,7 +4,7 @@
 // Coverline rule adapted from basal-temperature charting: a shift starts on the first of 3 consecutive
 // nights all ≥ 0.2 °C above the mean of the preceding 6 nights. Retrospective only: it confirms that
 // ovulation probably happened ~1 day before the shift; it can't predict it.
-import { mean, sd } from "./baseline.js?v=20261014195152";
+import { mean, sd } from "./baseline.js?v=20261031205706";
 
 /** nights: [{date, temp}] oldest first (temp = nightly median °C, null when missing). */
 export function detectShifts(nights, { rise = 0.2, before = 6, hold = 3 } = {}) {
@@ -143,6 +143,16 @@ function shiftForWindow(nights, start, endExclusive) {
   return shifts.length ? shifts[shifts.length - 1] : null;
 }
 
+const MAX_OPEN_DAYS = 10; // an open period older than this is assumed over (bleeds >10 days warrant a clinician anyway)
+const MAX_PREDICT_CYCLES = 6; // predictions follow recent cycles, not the whole history
+const MAX_PLAUSIBLE_CYCLE = 90; // a longer gap is almost always an unlogged period: shown in history, not averaged into predictions
+
+/** Cycle lengths used for prediction: the latest few, minus gaps that look like a missed log. */
+function predictionStats(periods) {
+  const lens = cycles(periods).cycles.map((c) => c.length).filter((x) => x != null && x <= MAX_PLAUSIBLE_CYCLE).slice(-MAX_PREDICT_CYCLES);
+  return { n: lens.length, meanLength: mean(lens), sdLength: sd(lens) };
+}
+
 const DEFAULT_LUTEAL_DAYS = 14; // Lenton 1984 / Fehring 2006 — see header comment; overridden by personalLuteal() below.
 
 /** Shift-confirmed luteal lengths (ovulation date -> next period start) from up to the last N completed cycles. */
@@ -217,9 +227,11 @@ export function cycleStatus({ periods, nights, today } = {}) {
   const cur = list[curIdx];
   const cycleStart = cur.start;
   const cycleDay = daysBetween(cycleStart, today) + 1;
-  const onPeriod = cur.end != null ? today <= cur.end : true;
+  // A period never closed is treated as ongoing only for a plausible bleed length; otherwise a forgotten
+  // "ended" log would pin the phase to "period" forever and block late/next-period estimates.
+  const onPeriod = cur.end != null ? today <= cur.end : cycleDay <= MAX_OPEN_DAYS;
 
-  const { stats } = cycles(periods);
+  const stats = predictionStats(periods);
   if (stats.n < 1) need.push("Log the start of a second period to estimate typical cycle length.");
 
   const nightsWin = nightsInRange(nights, cycleStart, addDays(today, 1));
@@ -341,7 +353,7 @@ export function cyclePrompt({ periods, today, status } = {}) {
 
   if (status?.phase === "period") return { ask: null, text: null };
   const np = status?.nextPeriod;
-  const windowHit = !!(np && np.date && today && Math.abs(daysBetween(np.date, today)) <= 2);
+  const windowHit = !!(np && np.date && today && Math.abs(daysBetween(np.date, today)) <= 2) || status?.phase === "late";
   const tempHit = !!(status?.tempShift?.detected && status?.tempShift?.dropping);
   if (windowHit || tempHit) return { ask: "start", text: "Did your period start?" };
 

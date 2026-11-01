@@ -2,8 +2,8 @@
 // cycle day and phase, the retrospective temperature shift (ovulation confirmed after the fact), estimated
 // fertile window and next period, cycle history and perimenopause staging. Estimates only; never
 // contraception-grade.
-import { tempC } from "../core/units.js?v=20261014195152";
-import { css, D, dname, esc, MON, S, sc, smooth, st, tUnit } from "./kit.js?v=20261014195152";
+import { tempC } from "../core/units.js?v=20261031205706";
+import { css, D, dname, esc, MON, S, sc, smooth, st, tUnit } from "./kit.js?v=20261031205706";
 
 const PHASE = { period: ["Period", "--bad"], follicular: ["Follicular", "--breath"], fertile: ["Fertile window (estimate)", "--act"], luteal: ["Luteal", "--sleep"], late: ["Period late", "--watch"], unknown: ["Log a period to start", "--ink3"] };
 const dt = (s) => new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
@@ -20,13 +20,14 @@ export function cycleTile() {
   const sub = s?.cycleDay ? `${label.toLowerCase()}${s.nextPeriod ? ` · period ~${short(s.nextPeriod.date)}` : ""}` : "tap to log your last period";
   return `<div class="card vital tap rise" style="--i:9;--tint:${css(color)}" data-cycle><div class="v-h"><i></i>Cycle</div><div class="v-v">${s?.cycleDay ? `Day ${s.cycleDay}` : "—"}<small></small></div><div class="v-s">${sub}</div><div class="v-sp">${miniRing(s, c.stats)}</div></div>`;
 }
+const openStart = () => (D.cycle?.periods ?? []).filter((p) => !p.end).pop()?.start ?? "";
 /** Trigger-based prompt (only when a start is due or a period has been open a while). */
 export function cyclePromptCard() {
   const p = D.cycle?.prompt;
   if (!p?.ask || st.cycleDismiss === D.latest.date) return "";
   return p.ask === "start"
-    ? `<div class="card prompt rise" style="--i:2"><p>${esc(p.text || "Did your period start?")}</p><div class="chips"><button class="chip" data-period="start-today">Yes, today</button><button class="chip" data-period="start-yday">Yesterday</button><button class="chip ghost" data-period="dismiss">Not yet</button></div></div>`
-    : `<div class="card prompt rise" style="--i:2"><p>${esc(p.text || "Has your period ended?")}</p><div class="chips"><button class="chip" data-period="end-today">Yes, today</button><button class="chip" data-period="end-yday">Yesterday</button><button class="chip ghost" data-period="dismiss">Not yet</button></div></div>`;
+    ? `<div class="card prompt rise" style="--i:2"><p>${esc(p.text || "Did your period start?")}</p><div class="chips"><button class="chip" data-period="start-today">Yes, today</button><button class="chip" data-period="start-yday">Yesterday</button><button class="chip" data-sheet="period">Pick a date</button><button class="chip ghost" data-period="dismiss">Not yet</button></div></div>`
+    : `<div class="card prompt rise" style="--i:2"><p>${esc(p.text || "Has your period ended?")}</p><div class="chips"><button class="chip" data-period="end-today">Yes, today</button><button class="chip" data-period="end-yday">Yesterday</button><button class="chip" data-sheet="period:${openStart()}">Pick a date</button><button class="chip ghost" data-period="dismiss">Not yet</button></div></div>`;
 }
 function miniRing(s, stats) {
   const L = Math.round(stats?.meanLength ?? 28), W0 = 150, H = 26, x = sc(1, L, 4, W0 - 4);
@@ -78,11 +79,11 @@ export function cycleView() {
   return `<div class="aurora"><i class="a"></i><i class="b"></i><i class="c"></i></div><div class="inner">
     <div class="m-top"><button class="back" data-close>‹ Live</button><span class="lbl">cycle</span></div>
     ${ring(s, stats)}
-    <div class="chips" style="justify-content:center;margin-top:10px"><button class="chip" data-sheet="period">Log a period</button>${c.open ? `<button class="chip" data-period="end-today">Period ended today</button>` : ""}</div>
+    <div class="chips" style="justify-content:center;margin-top:10px"><button class="chip" data-sheet="period">Log a period (any date)</button>${c.open ? `<button class="chip" data-period="end-today">Period ended today</button><button class="chip" data-sheet="period:${openStart()}">Set end date</button>` : ""}</div>
     <div class="card" style="margin-top:18px"><div class="kv">${rows.map(([a, b, e]) => `<div><span>${a}</span><b>${esc(b)}</b><em>${esc(e)}</em></div>`).join("")}</div></div>
     <div class="sec"><h2>Temperature this cycle</h2></div><div class="card">${tempChart(s)}</div>
     <div class="sec"><h2>Your cycles</h2><span class="lbl">${stats?.n ? `avg ${stats.meanLength.toFixed(0)} days${stats.sdLength != null ? ` ± ${stats.sdLength.toFixed(0)}` : ""}` : ""}</span></div>
-    <div class="card">${hist.length ? `<div class="kv">${hist.map((z) => `<div><span>${dname(dt(z.start))}</span><b>${z.length ? `${z.length} days` : "current"}</b><em>${z.periodDays ? `period ${z.periodDays} days` : "period end not logged"}</em></div>`).join("")}</div>` : `<p class="note" style="margin:0">Log your periods here (or answer the prompt when one is due). Estimates get personal after two cycles.</p>`}</div>
+    <div class="card">${hist.length ? `<div class="kv">${hist.map((z) => `<div data-sheet="period:${z.start}" style="cursor:pointer"><span>${dname(dt(z.start))}</span><b>${z.length ? `${z.length} days` : "current"}</b><em>${z.periodDays ? `period ${z.periodDays} days` : "period end not logged"}</em></div>`).join("")}</div><p class="note">Tap a cycle to correct or delete it.</p>` : `<p class="note" style="margin:0">Log your periods here (or answer the prompt when one is due). Estimates get personal after two cycles.</p>`}</div>
     ${peri && peri.stage !== "none" ? `<div class="sec"><h2>Perimenopause</h2><span class="lbl">STRAW+10</span></div><div class="card"><div class="kv"><div><span>Stage</span><b>${esc(peri.stage)}</b></div></div>${peri.reasons?.length ? `<p class="note">${esc(peri.reasons.join(" "))}</p>` : ""}${peri.need?.length ? `<p class="note">${esc(peri.need.join(" "))}</p>` : ""}<p class="note">Staging follows STRAW+10 (Harlow 2012) from your logged cycle lengths. It's descriptive; talk to your clinician about symptoms. Hot flashes can't be detected from this band (that needs a skin-conductance sensor).</p></div>` : ""}
     <div class="sec"><h2>How it works</h2></div><div class="card explain"><p>Pulse combines the periods you log with your nightly wrist temperature. A sustained rise of about 0.3 °C over 3 nights marks the luteal phase and confirms ovulation roughly a day earlier; this catches the shift in about 8 of 10 cycles (Shilaih 2018; Apple Women's Health Study 2025: ovulation within ±2 days in 80% of cycles, next period within ±3 days in 89%). Before a shift is seen, phases are estimated from your average cycle length. During the luteal phase your skin temperature and resting heart rate normally run higher, so Pulse doesn't treat that rise as a sign of illness.</p><p>Estimates only: not a contraceptive method and not a diagnosis.</p></div>
   </div>`;
